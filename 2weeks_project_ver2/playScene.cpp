@@ -1,10 +1,17 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "playScene.h"
 #include "itemFactory.h"
+#include "player.h"
+#include "designElement.h"
+#include "bomb.h"
+#include "item.h"
+#include "AIController.h"
 
-//¹°Ç³¼±°ü·Ã ¸ÊÁ¤º¸ Á¤ÀÇ (Ã³À½¿£ ¹°Ç³¼±ÀÌ ÀÖ´ÂÁö ¿©ºÎ¿Í, ³õÀº ¹Ù·ÎÁ÷ÈÄ¿©ºÎ µÎ°³´Ù false)
+extern POINT ptMouse;
+
+//ë¬¼í’ì„ ê´€ë ¨ ë§µì •ë³´ ì •ì˜ (ì²˜ìŒì—” ë¬¼í’ì„ ì´ ìˆëŠ”ì§€ ì—¬ë¶€ì™€, ë†“ì€ ë°”ë¡œì§í›„ì—¬ë¶€ ë‘ê°œë‹¤ false)
 CanIGo PlayScene::mapArr[BOARD_ROW][BOARD_COL] = { CanIGo() };
-//¾ÆÀÌÅÛ°ü·Ã ¸ÊÁ¤º¸ Á¤ÀÇ(Ã³À½¿£ ¾ÆÀÌÅÛÀÌ ÀÖ´ÂÁö ¿©ºÎ¿Í, ¾ÆÀÌÅÛÀÇ Á¾·ù°¡ °¢°¢ false, Not)
+//ì•„ì´í…œê´€ë ¨ ë§µì •ë³´ ì •ì˜(ì²˜ìŒì—” ì•„ì´í…œì´ ìˆëŠ”ì§€ ì—¬ë¶€ì™€, ì•„ì´í…œì˜ ì¢…ë¥˜ê°€ ê°ê° false, Not)
 bool PlayScene::isItemArr[BOARD_ROW][BOARD_COL] = { false };
 
 PlayScene::PlayScene()
@@ -31,27 +38,56 @@ void PlayScene::init()
 {
 	float randomNum1 = static_cast<float>(RANDOM->getIntFromTo(100, 300));
 	float randomNum2 = static_cast<float>(RANDOM->getIntFromTo(400, 600));
-    //Ä³¸¯ÅÍ »ı¼º
-	//TODO: ÁöÁ¤ÇØ³õÀº À§Ä¡¿¡, ·£´ıÇÏ°Ô »ı¼ºµÇ¿À¾ß ÇÑ´Ù!!
-	//2ÀÎ ¸ğµå·Î ÇÏ¸é 2¸íÀÇ player°¡ »ı¼ºµÇ¾î¾ßÇÑ´Ù
-	if (_mode == ModeTypeTag::TwoPlayer) //2ÀÎ ¸ğµå
+    //ìºë¦­í„° ìƒì„±
+	//TODO: ì§€ì •í•´ë†“ì€ ìœ„ì¹˜ì—, ëœë¤í•˜ê²Œ ìƒì„±ë˜ì˜¤ì•¼ í•œë‹¤!!
+	//2ì¸ ëª¨ë“œë¡œ í•˜ë©´ 2ëª…ì˜ playerê°€ ìƒì„±ë˜ì–´ì•¼í•œë‹¤
+	if (_mode == ModeTypeTag::TwoPlayer) //2ì¸ ëª¨ë“œ
 	{
 		Player* player1 = new Player(PlayerTypeTag::Player1, randomNum1, randomNum1);
 		Player* player2 = new Player(PlayerTypeTag::Player2, randomNum2, randomNum2);
+
+
+		// AI Controller ì—°ê²° (Player1 -> í¬íŠ¸ 12345)
+		auto* controller1 = new NetworkAIController("127.0.0.1", 12345);
+		if (controller1->connect())
+		{
+			player1->setAIController(controller1);
+			cout << "Player1 AI Controller connected" << endl;
+		}
+		else
+		{
+			delete controller1;
+			cout << "Player1 AI Controller connection failed" << endl;
+		}
+
+		// AI Controller ì—°ê²° (Player2 -> í¬íŠ¸ 12346)
+		auto* controller2 = new NetworkAIController("127.0.0.1", 12346);
+		if (controller2->connect())
+		{
+			player2->setAIController(controller2);
+			cout << "Player2 AI Controller connected" << endl;
+		}
+		else
+		{
+			delete controller2;
+			cout << "Player2 AI Controller connection failed" << endl;
+		}
+
+
 		GAMEOBJMANGER->registerObj(player1);
 		GAMEOBJMANGER->registerObj(player2);
 
 	}
-	else if(_mode == ModeTypeTag::Monster) //¸ó½ºÅÍ ¸ğµå
+	else if(_mode == ModeTypeTag::Monster) //ëª¬ìŠ¤í„° ëª¨ë“œ
 	{
 		Player* player = new Player(PlayerTypeTag::SoloPlayer, 300.f, 300.f);
 		GAMEOBJMANGER->registerObj(player);
 	}
 
-	//¾ÆÀÌÅÛ »ı¼º -> ItemFactory¿¡ À§ÀÓ
+	//ì•„ì´í…œ ìƒì„± -> ItemFactoryì— ìœ„ì„
 	ItemFactory::createItemAtRandomPosition();
 
-    //·¹µğ½Ã ±×·ÁÁú ¾Ö´Ï¸ŞÀÌ¼Ç ¿ä¼ÒµéÀ» °ÔÀÓ¸Å´ÏÀú¸¦ ÅëÇØ µî·ÏÇÑ´Ù(ÃÖ»ó´Ü¿¡ ±×·ÁÁÖ±â À§ÇÔ)
+    //ë ˆë””ì‹œ ê·¸ë ¤ì§ˆ ì• ë‹ˆë©”ì´ì…˜ ìš”ì†Œë“¤ì„ ê²Œì„ë§¤ë‹ˆì €ë¥¼ í†µí•´ ë“±ë¡í•œë‹¤(ìµœìƒë‹¨ì— ê·¸ë ¤ì£¼ê¸° ìœ„í•¨)
     _gameWords = new DesignElement(IMAGEMANAGER->findImage("GAME"));
     GAMEOBJMANGER->registerObj(_gameWords);
     _startWords = new DesignElement(IMAGEMANAGER->findImage("START"));
@@ -87,7 +123,7 @@ void PlayScene::update()
         if (_blackBg->getAlpha() > 20)
             _blackBg->setAlpha(_blackBg->getAlpha() - 10);
 
-        //°ÔÀÓ½ÃÀÛÀü¿¡ °ÔÀÓ½ºÅ¸Æ® ¹®±¸ º¸ÀÌ±â
+        //ê²Œì„ì‹œì‘ì „ì— ê²Œì„ìŠ¤íƒ€íŠ¸ ë¬¸êµ¬ ë³´ì´ê¸°
         int currentTime = static_cast<int>(TIMEMANAGER->getWorldTime());
         int diff = currentTime - _startTime;
 		if (diff > 5)
@@ -99,7 +135,7 @@ void PlayScene::update()
         {
             _blackBg->setAlpha(0);
             GAMESTATEMANAGER->setGameStart(true);
-            //»ç¿ëÀÚ ÀÔ·ÂÀ» ¹ŞÀ» ¼ö ÀÖÀ½À» È­¸éÀÌ ¹à¾ÆÁö´Â °É·Î ¾È³»
+            //ì‚¬ìš©ì ì…ë ¥ì„ ë°›ì„ ìˆ˜ ìˆìŒì„ í™”ë©´ì´ ë°ì•„ì§€ëŠ” ê±¸ë¡œ ì•ˆë‚´
         }
     }
     else
@@ -107,17 +143,17 @@ void PlayScene::update()
 		if (!_check)
 		{
 			_check = true;
-			//°ÔÀÓÀÌ ½ÃÀÛÇÏ¸é µğÀÚÀÎ±¸¼º¿ä¼ÒµéÀ» °ÔÀÓ¿ÀºêÁ§Æ® ¸Å´ÏÀú¿¡¼­ »èÁ¦ÇÑ´Ù
+			//ê²Œì„ì´ ì‹œì‘í•˜ë©´ ë””ìì¸êµ¬ì„±ìš”ì†Œë“¤ì„ ê²Œì„ì˜¤ë¸Œì íŠ¸ ë§¤ë‹ˆì €ì—ì„œ ì‚­ì œí•œë‹¤
 			GAMEOBJMANGER->removeObj(_gameWords->getId());
 			GAMEOBJMANGER->removeObj(_startWords->getId());
 			GAMEOBJMANGER->removeObj(_blackBg->getId());
 		}
 	}
 
-	//°ÔÀÓ ¿À¹ö »óÅÂÀÌ¸é
+	//ê²Œì„ ì˜¤ë²„ ìƒíƒœì´ë©´
 	if (GAMESTATEMANAGER->getGameOver())
 	{
-		//Game Over¹®±¸ º¸¿©ÁÖ±â
+		//Game Overë¬¸êµ¬ ë³´ì—¬ì£¼ê¸°
 		if (!_setTime)
 		{
 			SOUNDMANAGER->stop(static_cast<int>(SoundTypeTag::PlayScene));
@@ -125,7 +161,7 @@ void PlayScene::update()
 			_setTime = true;
 			_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 			
-			//°ÔÀÓ¿À¹ö½Ã ±×·ÁÁú ¾Ö´Ï¸ŞÀÌ¼Ç ¿ä¼ÒµéÀ» °ÔÀÓ ¸Å´ÏÀú¸¦ ÅëÇØ µî·ÏÇÑ´Ù
+			//ê²Œì„ì˜¤ë²„ì‹œ ê·¸ë ¤ì§ˆ ì• ë‹ˆë©”ì´ì…˜ ìš”ì†Œë“¤ì„ ê²Œì„ ë§¤ë‹ˆì €ë¥¼ í†µí•´ ë“±ë¡í•œë‹¤
 			_gameGrayWords = new DesignElement(IMAGEMANAGER->findImage("GAME_GRAY"));
 			GAMEOBJMANGER->registerObj(_gameGrayWords);
 			_overWords = new DesignElement(IMAGEMANAGER->findImage("OVER"));
@@ -144,32 +180,32 @@ void PlayScene::update()
 			if(_overWords->getImage()->getY() >= 349)
 				_overWords->getImage()->setY(_overWords->getImage()->getY() - 10.f);
 		}
-		if (diff > 6)//8ÃÊ µÚ¾ÀÀ» ·ÎºñÈ­¸éÀ¸·Î º¯°æ½ÃÅ²´Ù
+		if (diff > 6)//8ì´ˆ ë’¤ì”¬ì„ ë¡œë¹„í™”ë©´ìœ¼ë¡œ ë³€ê²½ì‹œí‚¨ë‹¤
 		{
 			if (!_setGameStateInit)
 			{
-				//GAME STATE Àç¼³Á¤
+				//GAME STATE ì¬ì„¤ì •
 				GAMESTATEMANAGER->setGameStart(false);
 				GAMESTATEMANAGER->setGameOver(false);
 				_setGameStateInit = true;
 			}
-			GAMEOBJMANGER->removeObjAll(); //°ÔÀÓ¿ÀºêÁ§Æ®µé ´Ù ³¯¸®±â
-			SCENEMANAGER->changeScene(SceneTag::Lobby); //¾À ¹Ù²Ù±â
+			GAMEOBJMANGER->removeObjAll(); //ê²Œì„ì˜¤ë¸Œì íŠ¸ë“¤ ë‹¤ ë‚ ë¦¬ê¸°
+			SCENEMANAGER->changeScene(SceneTag::Lobby); //ì”¬ ë°”ê¾¸ê¸°
 		}
 	}
 
-	//³ª°¡±â ¹öÆ°À» ´©¸£¸é
+	//ë‚˜ê°€ê¸° ë²„íŠ¼ì„ ëˆ„ë¥´ë©´
 	if (KEYMANAGER->isOnceKeyDown(VK_LBUTTON))
 	{
 		if (PtInRect(&_stopGameRect, ptMouse))
 		{
 			SOUNDMANAGER->stop(static_cast<int>(SoundTypeTag::PlayScene));
-			//GAME STATE Àç¼³Á¤
+			//GAME STATE ì¬ì„¤ì •
 			GAMESTATEMANAGER->setGameStart(false);
 			GAMESTATEMANAGER->setGameOver(false);
 
-			GAMEOBJMANGER->removeObjAll(); //°ÔÀÓ¿ÀºêÁ§Æ®µé ´Ù ³¯¸®±â
-			SCENEMANAGER->changeScene(SceneTag::ModeSelect); //¾À ¹Ù²Ù±â
+			GAMEOBJMANGER->removeObjAll(); //ê²Œì„ì˜¤ë¸Œì íŠ¸ë“¤ ë‹¤ ë‚ ë¦¬ê¸°
+			SCENEMANAGER->changeScene(SceneTag::ModeSelect); //ì”¬ ë°”ê¾¸ê¸°
 		}
 	}
 
@@ -177,44 +213,44 @@ void PlayScene::update()
 
 void PlayScene::render(HDC hdc)
 {
-    //¹è°æ
+    //ë°°ê²½
     IMAGEMANAGER->findImage("playBg")->render(hdc);
 
-    //Å¸ÀÏ
+    //íƒ€ì¼
     for (int i = 0; i < BOARD_ROW; ++i)
     {
         for (int j = 0; j < BOARD_COL; ++j)
         {
             IMAGEMANAGER->findImage(_vvTile[i][j].getStrKey())->render(hdc, BOARD_STARTX + (BOARD_RECTSIZE * j), BOARD_STARTY + (BOARD_RECTSIZE * i));
-            /* °İÀÚ Ãâ·ÂÇÏ´Â °Å ¿ä±âµû!!!! */
+            /* ê²©ì ì¶œë ¥í•˜ëŠ” ê±° ìš”ê¸°ë”°!!!! */
 			//drawRect(hdc, BOARD_STARTX + (BOARD_RECTSIZE * j), BOARD_STARTY + (BOARD_RECTSIZE * i), BOARD_RECTSIZE, BOARD_RECTSIZE);
         }
     }
 
-    //È­¸é Á¤º¸
+    //í™”ë©´ ì •ë³´
     //Text(15, 10, WINSIZEY - 22, "Play Scene")(hdc);
     //if (_mode == ModeTypeTag::TwoPlayer)
     //{
-    //    Text(15, 100, WINSIZEY - 22, "(2ÀÎ ¸ğµå)")(hdc);
+    //    Text(15, 100, WINSIZEY - 22, "(2ì¸ ëª¨ë“œ)")(hdc);
     //}
     //else if (_mode == ModeTypeTag::Monster)
     //{
-    //    Text(15, 100, WINSIZEY - 22, "(¸ó½ºÅÍ ¸ğµå)")(hdc);
+    //    Text(15, 100, WINSIZEY - 22, "(ëª¬ìŠ¤í„° ëª¨ë“œ)")(hdc);
     //}
 
-    //¸Ê Á¤º¸
+    //ë§µ ì •ë³´
     if (_mapType == MapTypeTag::Forest)
     {
-        Text(18, 62, 10, "Æ÷·¹½ºÆ®", WHITE)(hdc);
+        Text(18, 62, 10, "í¬ë ˆìŠ¤íŠ¸", WHITE)(hdc);
     }
 
-	//µğ¹ö±×¿ë
+	//ë””ë²„ê·¸ìš©
 	//debug(hdc);
 }
 
 void PlayScene::handleArgs(vector<int> args)
 {
-    assert(args.size() == 2); //¹İµå½Ã ÁöÄÑÁ®¾ßÇÒ »çÇ×, ¼±¿¹¿ÜÃ³¸® #include <cassert>, µğ¹ö±×¿ë x -> ¾ÈÁ¤¼º¿ë
+    assert(args.size() == 2); //ë°˜ë“œì‹œ ì§€ì¼œì ¸ì•¼í•  ì‚¬í•­, ì„ ì˜ˆì™¸ì²˜ë¦¬ #include <cassert>, ë””ë²„ê·¸ìš© x -> ì•ˆì •ì„±ìš©
     _mapType = static_cast<MapTypeTag>(args.at(1));
     _mode = static_cast<ModeTypeTag>(args.at(0));
     loadTile();
@@ -243,7 +279,7 @@ bool PlayScene::getIsItem(int row, int col)
 
 void PlayScene::debug(HDC hdc)
 {
-	//µğ¹ö±ë¿ë ¸Ê À§¿¡ °¥ ¼ö ÀÖ´ÂÁö ¾ø´Â Áö ¿©ºÎ ³ªÅ¸³»±â
+	//ë””ë²„ê¹…ìš© ë§µ ìœ„ì— ê°ˆ ìˆ˜ ìˆëŠ”ì§€ ì—†ëŠ” ì§€ ì—¬ë¶€ ë‚˜íƒ€ë‚´ê¸°
 	//for (int i = 0; i < BOARD_ROW; ++i)
 	//{
 	//    for (int j = 0; j < BOARD_COL; ++j)

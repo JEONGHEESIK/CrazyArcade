@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "playScene.h"
+#include "player.h"
+#include "bomb.h"
+#include "wave.h"
+#include "waveStartingPoint.h"
+#include "item.h"
 
 GameObjectManager::GameObjectManager()
 {
@@ -352,6 +357,6 @@ void GameObjectManager::debug(HDC hdc)
 	//µð¹ö±ë¿ë    
 	for (size_t i = 0; i < _gameObj.size(); ++i)
 	{
-		Text(15, 5, 100 + (15 * i), TEXT("ID: ") + to_string(_gameObj[i]->getId()) + TEXT(", TAG: ") + showTagForDebug(_gameObj[i]->getTag()), WHITE)(hdc);
+		Text(15, 5, 100 + (15 * static_cast<int>(i)), TEXT("ID: ") + to_string(_gameObj[i]->getId()) + TEXT(", TAG: ") + showTagForDebug(_gameObj[i]->getTag()), WHITE)(hdc);
 	}
 }

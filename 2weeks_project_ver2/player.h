@@ -1,71 +1,83 @@
-#pragma once
+ï»¿#pragma once
+
+#include "gameObject.h"
+#include "struct.h"
+#include "enum.h"
+#include <string>
+
+class AIController;  // Forward declaration
+
 class Player : public GameObject
 {
 private:
 	PlayerTypeTag _playerType;
-    POINT_FLOAT _start;
-    POINT_FLOAT _center;
-    //Ãæµ¹¿ë »ç°¢Çü
-    POINT_FLOAT _collisionStart;
-    //¹°Ç³¼±¿ë ¸öÅë »ç°¢Çü
-    POINT_FLOAT _bodyStart;
+	POINT_FLOAT _start;
+	POINT_FLOAT _center;
+	//ì¶©ëŒìš© ì‚¬ê°í˜•
+	POINT_FLOAT _collisionStart;
+	//ë¬¼í’ì„ ìš© ëª¸í†µ ì‚¬ê°í˜•
+	POINT_FLOAT _bodyStart;
 
-    float _speed;     //¼Óµµ
-    int _usableBombs; //»ç¿ëÇÒ ¼ö ÀÖ´Â ¹°Ç³¼±ÀÇ °³¼ö
-    int _usedBombs; //»ç¿ëÇÑ ¹°Ç³¼±ÀÇ °³¼ö
-    int _power; //¹°ÁÙ±â ¼¼±â
+	float _speed;     //ì†ë„
+	int _usableBombs; //ì‚¬ìš©í•  ìˆ˜ ìˆëŠ” ë¬¼í’ì„ ì˜ ê°œìˆ˜
+	int _usedBombs; //ì‚¬ìš©í•œ ë¬¼í’ì„ ì˜ ê°œìˆ˜
+	int _power; //ë¬¼ì¤„ê¸° ì„¸ê¸°
 
-    PlayerStateTag _previousState;
-    PlayerStateTag _currentState;
+	PlayerStateTag _previousState;
+	PlayerStateTag _currentState;
 
-    int _startTime;
-    float _trapMoveCoolDown;
-    int _count;
-	//bool _flag; //±×¸²ÀÚ Ãâ·Â ¿À·ù ÀâÀ»¶ó°í
-	bool _setLive; //»ì¾Ò´Ù ¼ÂÆÃÀº ÇÑ¹ø¸¸
-	bool _check;//¹°Ç³¼± µÎ´Â ¼Ò¸®
+	int _startTime;
+	float _trapMoveCoolDown;
+	int _count;
+	//bool _flag; //ê·¸ë¦¼ì ì¶œë ¥ ì˜¤ë¥˜ ì¡ì„ë¼ê³ 
+	bool _setLive; //ì‚´ì•˜ë‹¤ ì…‹íŒ…ì€ í•œë²ˆë§Œ
+	bool _check;//ë¬¼í’ì„  ë‘ëŠ” ì†Œë¦¬
 
-    /* »ó¼ö */
-    const int _WIDTH;
-    const int _HEIGHT;
-    //Ãæµ¹¿ë »ç°¢Çü
-    const int _COLLISION_WIDTH;
-    const int _COLLISION_HEIGHT;
-    //¹°Ç³¼±¿ë ¸öÅë »ç°¢Çü
-    const int _BODY_WIDTH;
-    const int _BODY_HEIGHT;
+	// AI ê´€ë ¨
+	AIController* _aiController;
+	bool _isAI;
 
-    const float _TRAP_SPEED;
-    const float _MOVE_COOLTIME;
-    const float _WAIT_COOLTIME; 
-    const float _READY_COOLTIME;
-    const float _TRAP_COOLTIME;
-    const float _TRAP_MOVE_COOLTIME;
-    const float _DIE_COOLTIME;
+	/* ìƒìˆ˜ */
+	const int _WIDTH;
+	const int _HEIGHT;
+	//ì¶©ëŒìš© ì‚¬ê°í˜•
+	const int _COLLISION_WIDTH;
+	const int _COLLISION_HEIGHT;
+	//ë¬¼í’ì„ ìš© ëª¸í†µ ì‚¬ê°í˜•
+	const int _BODY_WIDTH;
+	const int _BODY_HEIGHT;
+
+	const float _TRAP_SPEED;
+	const float _MOVE_COOLTIME;
+	const float _WAIT_COOLTIME;
+	const float _READY_COOLTIME;
+	const float _TRAP_COOLTIME;
+	const float _TRAP_MOVE_COOLTIME;
+	const float _DIE_COOLTIME;
 
 public:
-    Player(PlayerTypeTag playerType, float startX, float startY);
-    ~Player();
+	Player(PlayerTypeTag playerType, float startX, float startY);
+	~Player();
 
-    virtual void init() override;
-    virtual void update() override;
-    virtual void render(HDC hdc) override;
-    virtual void release() override;
-    virtual void onCollisionEnter(GameObject* other, RECT area) override;
+	virtual void init() override;
+	virtual void update() override;
+	virtual void render(HDC hdc) override;
+	virtual void release() override;
+	virtual void onCollisionEnter(GameObject* other, RECT area) override;
 
-    void setCenter();
-    void setCollisionStart();
-    void setBodyStart();
+	void setCenter();
+	void setCollisionStart();
+	void setBodyStart();
 
-	//»ç¿ëÇÑ Ç³¼±ÀÌ ÅÍÁö¸é _usedBombsÀÇ °³¼ö¸¦ Á¶Á¤ÇØÁÖ±â À§ÇÔ
+	//ì‚¬ìš©í•œ í’ì„ ì´ í„°ì§€ë©´ _usedBombsì˜ ê°œìˆ˜ë¥¼ ì¡°ì •í•´ì£¼ê¸° ìœ„í•¨
 	void changeUsedBombs();
 
-	//µğ¹ö±×¿ë
+	//ë””ë²„ê·¸ìš©
 	string showPlayerStateForDebug(PlayerStateTag state);
-    void debug(HDC hdc);
+	void debug(HDC hdc);
 
 	/*
-	°ÔÅÍ¼¼ÅÍ
+	ê²Œí„°ì„¸í„°
 	*/
 	int getWidth() const
 	{
@@ -95,7 +107,7 @@ public:
 		_start.y = startY;
 	}
 
-	//Ãæµ¹¿ë »ç°¢Çü
+	//ì¶©ëŒìš© ì‚¬ê°í˜•
 	int getCollisionWidth() const
 	{
 		return _COLLISION_WIDTH;
@@ -123,7 +135,7 @@ public:
 	}
 
 
-	//¸öÅë¿ë »ç°¢Çü
+	//ëª¸í†µìš© ì‚¬ê°í˜•
 	int getBodyWidth() const
 	{
 		return _BODY_WIDTH;
@@ -171,5 +183,28 @@ public:
 	void setLive(bool live)
 	{
 		_setLive = live;
+	}
+
+	// AI ê´€ë ¨ getter/setter
+	void setAIController(AIController* controller)
+	{
+		_aiController = controller;
+		_isAI = (controller != nullptr);
+	}
+	bool isAI() const
+	{
+		return _isAI;
+	}
+	float getSpeed() const
+	{
+		return _speed;
+	}
+	int getUsableBombs() const
+	{
+		return _usableBombs;
+	}
+	int getPower() const
+	{
+		return _power;
 	}
 };

@@ -93,7 +93,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszcmP
     mg->release();
     //윈도우 클래스 등록해제
     UnregisterClass(WINNAME, hInstance);
-    return message.wParam;
+    return static_cast<int>(message.wParam);
 }
 
 //윈도우 프로시저: 메세지를 운영체제에 전달, 강제로 운영체제가 호출한다
@@ -105,7 +105,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszcmP
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 {
     //메인게임 클래스 내부의 메인프로시저를 실행시킴
-    return mg->MainProc(hWnd, iMessage, wParam, lParam);
+    return static_cast<LRESULT>(mg->MainProc(hWnd, iMessage, wParam, lParam));
 }
 
 void setWindowSize(int x, int y, int width, int height)

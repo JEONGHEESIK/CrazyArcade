@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "gameNode.h"
 
+extern POINT ptMouse;
+
 GameNode::GameNode()
 {
 }

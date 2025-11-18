@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "modeSelectScene.h"
 #include "lobbyScene.h"
+
+extern POINT ptMouse;
+
 ModeSelectScene::ModeSelectScene()
 	: _check(false)
 {

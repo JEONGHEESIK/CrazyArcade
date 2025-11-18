@@ -1,4 +1,10 @@
 #pragma once
+
+#include "scene.h"
+#include "enum.h"
+#include "tile.h"
+class DesignElement;
+
 class PlayScene : public Scene
 {
 private:

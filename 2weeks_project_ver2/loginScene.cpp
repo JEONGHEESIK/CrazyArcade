@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "loginScene.h"
 
+extern POINT ptMouse;
+
 LoginScene::LoginScene()
 	: _check(false)
 {

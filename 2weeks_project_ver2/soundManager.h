@@ -7,7 +7,7 @@
 #include <fmod.hpp>
 #include <fmod_errors.h>
 
-#pragma comment(lib, "fmod64_vc.lib")
+#pragma comment(lib, "fmod_vc.lib")
 
 #include "singletonBase.h"
 #include "enum.h"

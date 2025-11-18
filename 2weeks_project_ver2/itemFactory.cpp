@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "itemFactory.h"
 #include "playScene.h"
+#include "item.h"
+
 void ItemFactory::createItemAtRandomPosition()
 {
 	int theNumOfItem = RANDOM->getIntFromTo(35, 40); //35~40 사이의 아이템을 생성한다

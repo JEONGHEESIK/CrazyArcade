@@ -129,7 +129,7 @@ Image * ImageManager::addImage(string strKey, const char * fileName, float x, fl
 
     img = new Image;
     //이미지가 제대로 초기화되지 않았으면
-    if (FAILED(img->init(fileName, x, y, width, height, isTrans, transColor)))
+    if (FAILED(img->init(fileName, static_cast<int>(x), static_cast<int>(y), width, height, isTrans, transColor)))
     {
         SAFE_DELETE(img);
         return nullptr;
@@ -173,7 +173,7 @@ Image * ImageManager::addFrameImage(string strKey, const char * fileName, float 
 
     img = new Image;
     //이미지가 제대로 초기화되지 않았으면
-    if (FAILED(img->init(fileName, x, y, width, height, frameX, frameY, isTrans, transColor)))
+    if (FAILED(img->init(fileName, static_cast<int>(x), static_cast<int>(y), width, height, frameX, frameY, isTrans, transColor)))
     {
         SAFE_DELETE(img);
         return nullptr;

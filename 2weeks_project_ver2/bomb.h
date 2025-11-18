@@ -1,4 +1,10 @@
 #pragma once
+
+#include "gameObject.h"
+#include "struct.h"
+#include "enum.h"
+class Player;
+
 class Bomb : public GameObject
 {
 private:

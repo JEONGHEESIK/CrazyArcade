@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "waveStartingPoint.h"
+#include "wave.h"
 
 WaveStartingPoint::WaveStartingPoint(MapSpace mapSpace, int power)
     : GameObject(GameObjectTag::WaveStartingPoint)

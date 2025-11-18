@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "player.h"
 #include "playScene.h"
+#include "bomb.h"
+#include "item.h"
+#include "AIController.h"
 
 Player::Player(PlayerTypeTag playerType, float startX, float startY)
     : GameObject(GameObjectTag::Player)
@@ -190,9 +193,29 @@ void Player::update()
         {	
 			if (!GAMESTATEMANAGER->getGameOver())
 			{
-				if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_SPACE)) ||
-					(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RSHIFT)) ||
-					(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown(VK_LSHIFT)))
+				// AI 컨트롤러가 있으면 AI 행동 사용
+				AIAction aiAction = AIAction::IDLE;
+				if (_isAI && _aiController)
+				{
+					GameState state = GameStateExtractor::extractState();
+					int playerIndex = (_playerType == PlayerTypeTag::Player1) ? 1 : 2;
+					aiAction = _aiController->getAction(state, playerIndex);
+				}
+
+				//물풍선 놓기
+				bool shouldPlaceBomb = false;
+				if (_isAI)
+				{
+					shouldPlaceBomb = (aiAction == AIAction::PLACE_BOMB);
+				}
+				else
+				{
+					shouldPlaceBomb = ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_SPACE)) ||
+						(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RSHIFT)) ||
+						(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown(VK_LSHIFT)));
+				}
+
+				if (shouldPlaceBomb)
 				{
 					if (!_check)
 					{
@@ -211,9 +234,33 @@ void Player::update()
 					}
 				}
 
-				if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_UP)) ||
-					(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_UP)) ||
-					(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('R')))
+				// 이동 처리
+				bool moveUp = false, moveDown = false, moveLeft = false, moveRight = false;
+
+				if (_isAI)
+				{
+					moveUp = (aiAction == AIAction::UP);
+					moveDown = (aiAction == AIAction::DOWN);
+					moveLeft = (aiAction == AIAction::LEFT);
+					moveRight = (aiAction == AIAction::RIGHT);
+				}
+				else
+				{
+					moveUp = ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_UP)) ||
+						(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_UP)) ||
+						(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('R')));
+					moveDown = ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
+						(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
+						(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('F')));
+					moveLeft = ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
+						(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
+						(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('D')));
+					moveRight = ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
+						(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
+						(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('G')));
+				}
+
+				if (moveUp)
 				{
 					_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 
@@ -230,9 +277,7 @@ void Player::update()
 						_start.y -= _speed;
 					}
 				}
-				else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
-					(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
-					(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('F')))
+				else if (moveDown)
 				{
 					_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 
@@ -249,9 +294,7 @@ void Player::update()
 						_start.y += _speed;
 					}
 				}
-				else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
-					(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
-					(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('D')))
+				else if (moveLeft)
 				{
 					_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 
@@ -268,9 +311,7 @@ void Player::update()
 						_start.x -= _speed;
 					}
 				}
-				else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
-					(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
-					(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('G')))
+				else if (moveRight)
 				{
 					_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 
@@ -341,11 +382,11 @@ void Player::render(HDC hdc)
 
 	//위에 1p인지 2p인지 알려줌
 	if (_playerType == PlayerTypeTag::Player1)
-		IMAGEMANAGER->findImage("player1")->render(hdc, _center.x - 12.f, _center.y - 90.f);
+		IMAGEMANAGER->findImage("player1")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
 	else if(_playerType == PlayerTypeTag::Player2)
-		IMAGEMANAGER->findImage("player2")->render(hdc, _center.x - 12.f, _center.y - 90.f);
+		IMAGEMANAGER->findImage("player2")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
 	else if (_playerType == PlayerTypeTag::SoloPlayer)
-		IMAGEMANAGER->findImage("soloPlayer")->render(hdc, _center.x - 12.f, _center.y - 90.f);
+		IMAGEMANAGER->findImage("soloPlayer")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
 
     //디버깅용
     //debug(hdc);

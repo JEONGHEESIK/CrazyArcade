@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "lobbyScene.h"
 #include "playScene.h"
+
+extern POINT ptMouse;
+
 LobbyScene::LobbyScene()
     : _mapType(MapTypeTag::Not)
     , _mode(ModeTypeTag::Not)
