@@ -1,5 +1,4 @@
 """
-진짜 DQN vs PPO 대결
 Player 1 (DQN) vs Player 2 (PPO)
 """
 import torch
