@@ -36,7 +36,7 @@ TARGET_UPDATE_FREQUENCY = 5  # 타겟 네트워크 업데이트 주기 감소 (�
 
 # 학습 설정
 MAX_EPISODES = 5000  # 에피소드 수 감소
-MAX_STEPS_PER_EPISODE = 500  # 스텝 수 감소 (빠른 게임)
+MAX_STEPS_PER_EPISODE = 10000  # 스텝 제한 대폭 증가 (승패 결정까지)
 SAVE_FREQUENCY = 50  # 모델 저장 주기 감소
 
 # 네트워크 구조

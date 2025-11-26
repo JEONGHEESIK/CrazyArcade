@@ -5,14 +5,15 @@
 extern POINT ptMouse;
 
 LobbyScene::LobbyScene()
-    : _mapType(MapTypeTag::Not)
-    , _mode(ModeTypeTag::Not)
+	: _mapType(MapTypeTag::Not)
+	, _mode(ModeTypeTag::Not)
 	, _isMapSet(false)
 	, _check1(false)
 	, _check2(false)
+	, _autoRestartGame(false)
 {
-    _rc = makeRect(666, 641, 250, 74);
-    _rcBack = makeRect(16,743, 40, 32);
+	_rc = makeRect(666, 641, 250, 74);
+	_rcBack = makeRect(16, 743, 40, 32);
 }
 
 LobbyScene::~LobbyScene()
@@ -25,6 +26,16 @@ void LobbyScene::init()
 	SCENEMANAGER->deleteScene(SceneTag::Play);
 	PlayScene* play = new PlayScene;
 	SCENEMANAGER->registerScene(SceneTag::Play, play);
+
+	// AI 학습용 자동 재시작 (로비 진입 시 바로 게임 시작)
+	if (_autoRestartGame)
+	{
+		cout << "[AUTO] Restarting game..." << endl;
+		_mode = ModeTypeTag::TwoPlayer;
+		_mapType = MapTypeTag::Forest;
+		SOUNDMANAGER->stop(static_cast<int>(SoundTypeTag::LobbyScene));
+		SCENEMANAGER->changeScene(SceneTag::Play, vector<int>{static_cast<int>(_mode), static_cast<int>(_mapType)});
+	}
 }
 
 void LobbyScene::release()
@@ -33,9 +44,13 @@ void LobbyScene::release()
 
 void LobbyScene::update()
 {
-	SOUNDMANAGER->repeatPlay(static_cast<int>(SoundTypeTag::LobbyScene), SoundTypeTag::LobbyScene);
+	// 자동 재시작 모드가 아닐 때만 음악 재생
+	if (!_autoRestartGame)
+	{
+		SOUNDMANAGER->repeatPlay(static_cast<int>(SoundTypeTag::LobbyScene), SoundTypeTag::LobbyScene);
+	}
 	//TODO: 버튼에 따라
-    //캐릭터 선택도 넘겨준다
+	//캐릭터 선택도 넘겨준다
 	if (!_isMapSet)
 	{
 		_mapType = MapTypeTag::Forest; //우선 포레스트로 셋
@@ -45,7 +60,7 @@ void LobbyScene::update()
 	{
 		if (KEYMANAGER->isOnceKeyDown(VK_LBUTTON))
 		{
-			SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::Click), SoundTypeTag::Click);		
+			SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::Click), SoundTypeTag::Click);
 			SOUNDMANAGER->stop(static_cast<int>(SoundTypeTag::LobbyScene));
 			SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::GameStart), SoundTypeTag::GameStart);
 			SCENEMANAGER->changeScene(SceneTag::Play, vector<int>{static_cast<int>(_mode), static_cast<int>(_mapType)});
@@ -62,12 +77,12 @@ void LobbyScene::update()
 	}
 
 	if (PtInRect(&_rcBack, ptMouse))
-    {
+	{
 		if (KEYMANAGER->isOnceKeyDown(VK_LBUTTON))
 		{
 			SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::Click), SoundTypeTag::Click);
 			SOUNDMANAGER->stop(static_cast<int>(SoundTypeTag::LobbyScene));
-			
+
 			SCENEMANAGER->changeScene(SceneTag::ModeSelect);
 		}
 		if (!_check2)
@@ -75,34 +90,35 @@ void LobbyScene::update()
 			_check2 = true;
 			SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::PtInRect), SoundTypeTag::PtInRect);
 		}
-    }
+	}
 	else
 	{
 		_check2 = false;
 	}
-    
+
 }
 
 void LobbyScene::render(HDC hdc)
 {
-    IMAGEMANAGER->findImage("lobbySceneBg")->render(hdc, 0, 0);
-    //Text(15, 10, WINSIZEY - 22, "Lobby Scene")(hdc);
-    //if (_mode == ModeTypeTag::TwoPlayer)
-    //{
-    //    Text(15, 100, WINSIZEY - 22, "(2인 모드)")(hdc);
-    //}
-    //else if (_mode == ModeTypeTag::Monster)
-    //{
-    //    Text(15, 100, WINSIZEY - 22, "(몬스터 모드)")(hdc);
-    //}
-    //drawRect(hdc, _rc.left, _rc.top, _rc.right - _rc.left, _rc.bottom - _rc.top);
-    //DrawText(hdc, "시   작", -1, &_rc, DT_CENTER);
-
-    //drawRect(hdc, _rcBack.left, _rcBack.top, _rcBack.right - _rcBack.left, _rcBack.bottom - _rcBack.top);
-    //DrawText(hdc, "뒤로", -1, &_rcBack, DT_CENTER);
+	IMAGEMANAGER->findImage("lobbySceneBg")->render(hdc, 0, 0);
 }
 
 void LobbyScene::handleArgs(vector<int> args)
 {
-    _mode = static_cast<ModeTypeTag>(args.at(0));
+	// args[0] == 1이면 자동 재시작 모드
+	if (!args.empty() && args[0] == 1)
+	{
+		_autoRestartGame = true;
+		cout << "[LOBBY] Auto-restart mode enabled" << endl;
+	}
+	else if (!args.empty())
+	{
+		// 기존 로직: ModeSelect에서 넘어올 때
+		_mode = static_cast<ModeTypeTag>(args.at(0));
+		_autoRestartGame = false;
+	}
+	else
+	{
+		_autoRestartGame = false;
+	}
 }

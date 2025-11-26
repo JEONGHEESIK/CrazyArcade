@@ -37,6 +37,9 @@ private:
 	AIController* _aiController;
 	bool _isAI;
 
+	// 스폰 보호 (초반 물풍선 방지)
+	int _spawnProtectionTime;
+
 	/* 상수 */
 	const int _WIDTH;
 	const int _HEIGHT;

@@ -1,47 +1,56 @@
-#pragma once
+ï»¿#pragma once
 
 #include "scene.h"
 #include "enum.h"
 #include "tile.h"
 class DesignElement;
+class NetworkAIController;  // forward declaration
 
 class PlayScene : public Scene
 {
 private:
-    MapTypeTag _mapType;
-    ModeTypeTag _mode;
-    vector<vector<Tile>> _vvTile;
-    int _startTime;
+	MapTypeTag _mapType;
+	ModeTypeTag _mode;
+	vector<vector<Tile>> _vvTile;
+	int _startTime;
 	bool _setTime;
 	bool _setGameStateInit;
-	bool _check; //ÇÑ¹ø¸¸ ½ÇÇàÇÏ´Â °Å Ã¼Å©ÇÏ±â À§ÇÔ
+	bool _check; //í•œë²ˆë§Œ ì‹¤í–‰í•˜ëŠ” ê±° ì²´í¬í•˜ê¸° ìœ„í•¨
 
-    DesignElement* _gameWords;
-    DesignElement* _startWords;
-    DesignElement* _blackBg;
+	// AI í•™ìŠµìš© ìë™ ì¬ì‹œì‘
+	bool _autoRestart;
+	int _gameOverStartTime;
+
+	// AI Controller ì „ì—­ ìœ ì§€ (ì¬ì‹œì‘ ì‹œì—ë„ ì—°ê²° ìœ ì§€)
+	static NetworkAIController* _globalController1;
+	static NetworkAIController* _globalController2;
+
+	DesignElement* _gameWords;
+	DesignElement* _startWords;
+	DesignElement* _blackBg;
 	DesignElement* _gameGrayWords;
 	DesignElement* _overWords;
 
-	RECT _stopGameRect; //³ª°¡±â ¹öÆ°
+	RECT _stopGameRect; //ë‚˜ê°€ê¸° ë²„íŠ¼
 
 public:
-    PlayScene();
-    ~PlayScene();
+	PlayScene();
+	~PlayScene();
 
-    virtual void init() override;
-    virtual void release() override;
-    virtual void update() override;
-    virtual void render(HDC hdc) override;
-    virtual void handleArgs(vector<int> args) override;
+	virtual void init() override;
+	virtual void release() override;
+	virtual void update() override;
+	virtual void render(HDC hdc) override;
+	virtual void handleArgs(vector<int> args) override;
 
-    void loadTile();
+	void loadTile();
 	void debug(HDC hdc);
 
-    //¹°Ç³¼± °ü·Ã ¸ÊÁ¤º¸
-    static CanIGo mapArr[BOARD_ROW][BOARD_COL];
-    static void changeMapArr(int row, int col, bool isBomb, bool rightAfter = false);
+	//ë¬¼í’ì„  ê´€ë ¨ ë§µì •ë³´
+	static CanIGo mapArr[BOARD_ROW][BOARD_COL];
+	static void changeMapArr(int row, int col, bool isBomb, bool rightAfter = false);
 
-	//¾ÆÀÌÅÛ °ü·Ã ¸ÊÁ¤º¸
+	//ì•„ì´í…œ ê´€ë ¨ ë§µì •ë³´
 	static bool isItemArr[BOARD_ROW][BOARD_COL];
 	static void setIsItem(int row, int col, bool isItem);
 	static bool getIsItem(int row, int col);

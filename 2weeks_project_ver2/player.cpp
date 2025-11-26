@@ -1,4 +1,4 @@
-#include "stdafx.h"
+ï»¿#include "stdafx.h"
 #include "player.h"
 #include "playScene.h"
 #include "bomb.h"
@@ -6,41 +6,44 @@
 #include "AIController.h"
 
 Player::Player(PlayerTypeTag playerType, float startX, float startY)
-    : GameObject(GameObjectTag::Player)
+	: GameObject(GameObjectTag::Player)
 	, _playerType(playerType)
-    , _WIDTH(BOARD_RECTSIZE)
-    , _HEIGHT(BOARD_RECTSIZE)
-    , _speed(2.f)
-    , _usedBombs(0)
-    , _usableBombs(1)        // TODO: Áö±İÀº 100°³ »ç¿ë°¡´ÉÇÑµ¥, ÃÖ´ë 6°³·Î Á¦ÇÑÇÒ °Í
-    , _power(1)                 //powerÀÇ ÃÖ´ë´Â 7
-    , _previousState(PlayerStateTag::Not)
-    , _currentState(PlayerStateTag::Ready)  
-    , _startTime(static_cast<int>(TIMEMANAGER->getWorldTime()))
-    , _COLLISION_WIDTH(20)
-    , _COLLISION_HEIGHT(26)
-    , _BODY_WIDTH(42)
-    , _BODY_HEIGHT(24)
-    , _TRAP_SPEED(0.2f)
+	, _WIDTH(BOARD_RECTSIZE)
+	, _HEIGHT(BOARD_RECTSIZE)
+	, _speed(2.f)
+	, _usedBombs(0)
+	, _usableBombs(1)        // TODO: ì§€ê¸ˆì€ 100ê°œ ì‚¬ìš©ê°€ëŠ¥í•œë°, ìµœëŒ€ 6ê°œë¡œ ì œí•œí•  ê²ƒ
+	, _power(1)                 //powerì˜ ìµœëŒ€ëŠ” 7
+	, _previousState(PlayerStateTag::Not)
+	, _currentState(PlayerStateTag::Ready)
+	, _startTime(static_cast<int>(TIMEMANAGER->getWorldTime()))
+	, _COLLISION_WIDTH(20)
+	, _COLLISION_HEIGHT(26)
+	, _BODY_WIDTH(42)
+	, _BODY_HEIGHT(24)
+	, _TRAP_SPEED(0.2f)
 	, _setLive(false)
-    //ÄğÅ¸ÀÓ ==================
-    , _MOVE_COOLTIME(0.1f)
-    , _WAIT_COOLTIME(4.0f)
-    , _READY_COOLTIME(0.1f)
-    , _TRAP_COOLTIME(0.2f) 
-    , _TRAP_MOVE_COOLTIME(0.3f) //¹°Ç³¼± °¤Èù ÈÄ ÀÚµ¿À¸·Î ¾Æ·¡·Î ³»·Á¿À´Â ¿ë
-    , _DIE_COOLTIME(0.2f)
-    , _count(0)                 //ÇÁ·¹ÀÓ ¹İº¹È½¼ö Á¦ÇÑ µÎ±âÀ§ÇÔ
+	//ì¿¨íƒ€ì„ ==================
+	, _MOVE_COOLTIME(0.1f)
+	, _WAIT_COOLTIME(4.0f)
+	, _READY_COOLTIME(0.1f)
+	, _TRAP_COOLTIME(0.2f)
+	, _TRAP_MOVE_COOLTIME(0.3f) //ë¬¼í’ì„  ê°‡íŒ í›„ ìë™ìœ¼ë¡œ ì•„ë˜ë¡œ ë‚´ë ¤ì˜¤ëŠ” ìš©
+	, _DIE_COOLTIME(0.2f)
+	, _count(0)                 //í”„ë ˆì„ ë°˜ë³µíšŸìˆ˜ ì œí•œ ë‘ê¸°ìœ„í•¨
 	, _check(false)
+	, _aiController(nullptr)
+	, _isAI(false)
+	, _spawnProtectionTime(999999)
 {
-    _start.x = startX;
-    _start.y = startY;
+	_start.x = startX;
+	_start.y = startY;
 
-    setCenter();                //Áß½ÉÁÂÇ¥ ¾÷µ¥ÀÌÆ®
-    setCollisionStart();        //Ãæµ¹»ç°¢Çü ÁÂ»ó´Ü ¾÷µ¥ÀÌÆ®
-    setBodyStart();             //¸öÅë »ç°¢Çü ÁÂ»ó´Ü ¾÷µ¥ÀÌÆ®
+	setCenter();                //ì¤‘ì‹¬ì¢Œí‘œ ì—…ë°ì´íŠ¸
+	setCollisionStart();        //ì¶©ëŒì‚¬ê°í˜• ì¢Œìƒë‹¨ ì—…ë°ì´íŠ¸
+	setBodyStart();             //ëª¸í†µ ì‚¬ê°í˜• ì¢Œìƒë‹¨ ì—…ë°ì´íŠ¸
 
-    setAnimationInfo("playerBazziReady", _READY_COOLTIME);
+	setAnimationInfo("playerBazziReady", _READY_COOLTIME);
 }
 
 Player::~Player()
@@ -54,89 +57,95 @@ void Player::init()
 
 void Player::update()
 {
-    //Ä³¸¯ÅÍ »óÅÂ È®ÀÎ¿ë
-    //cout << "_previousState: " << showPlayerStateForDebug(_previousState) << endl;
-    //cout << "_currentState: " << showPlayerStateForDebug(_currentState) << endl;
-    if (!GAMESTATEMANAGER->getGameStart())                             //°ÔÀÓÀÌ ½ÃÀÛÇÏ±â Àü¿¡´Â ·¹µğ ¾Ö´Ï¸ŞÀÌ¼ÇÀ» º¸¿©ÁØ´Ù
-    {
-        int maxFrame = IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX();
-        animation(maxFrame);
-        if (getFrame() >= maxFrame)                                    //¹øÂ½¹øÂ½ ÇÁ·¹ÀÓ À§ÇÔ
-            setFrame(15);
-    }
-    else
-    {
-        if (_currentState == PlayerStateTag::Ready)                    //¿©ÀüÈ÷ ready»óÅÂ¶ó¸é °­Á¦·Î wait»óÅÂ·Î º¯°æÇÑ´Ù
-        {
-            setAnimationInfo("playerBazziWait", _WAIT_COOLTIME);
-            _previousState = _currentState;
-            _currentState = PlayerStateTag::Wait;
-        }
-        else if (_currentState == PlayerStateTag::Trap)
-        {
+	// ê²Œì„ ì‹œì‘ ì‹œ ìŠ¤í° ë³´í˜¸ ì‹œê°„ ì„¤ì • (í•œ ë²ˆë§Œ)
+	if (GAMESTATEMANAGER->getGameStart() && _spawnProtectionTime > 100000)
+	{
+		_spawnProtectionTime = static_cast<int>(TIMEMANAGER->getWorldTime()) + 3;
+	}
+
+	//ìºë¦­í„° ìƒíƒœ í™•ì¸ìš©
+	//cout << "_previousState: " << showPlayerStateForDebug(_previousState) << endl;
+	//cout << "_currentState: " << showPlayerStateForDebug(_currentState) << endl;
+	if (!GAMESTATEMANAGER->getGameStart())                             //ê²Œì„ì´ ì‹œì‘í•˜ê¸° ì „ì—ëŠ” ë ˆë”” ì• ë‹ˆë©”ì´ì…˜ì„ ë³´ì—¬ì¤€ë‹¤
+	{
+		int maxFrame = IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX();
+		animation(maxFrame);
+		if (getFrame() >= maxFrame)                                    //ë²ˆì©ë²ˆì© í”„ë ˆì„ ìœ„í•¨
+			setFrame(15);
+	}
+	else
+	{
+		if (_currentState == PlayerStateTag::Ready)                    //ì—¬ì „íˆ readyìƒíƒœë¼ë©´ ê°•ì œë¡œ waitìƒíƒœë¡œ ë³€ê²½í•œë‹¤
+		{
+			setAnimationInfo("playerBazziWait", _WAIT_COOLTIME);
+			_previousState = _currentState;
+			_currentState = PlayerStateTag::Wait;
+		}
+		else if (_currentState == PlayerStateTag::Trap)
+		{
 			if (_currentState != _previousState)
 			{
 				_startTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 				setAnimationInfo("playerBazziTrap", _TRAP_COOLTIME);
-				_speed = _TRAP_SPEED; //½ºÇÇµå ´À·ÁÁü
+				_speed = _TRAP_SPEED; //ìŠ¤í”¼ë“œ ëŠë ¤ì§
 				_previousState = _currentState;
 			}
-            int maxFrame = IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX();
-            animation(maxFrame);
-            if (getFrame() >= maxFrame)
-                setFrame(8);
+			int maxFrame = IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX();
+			animation(maxFrame);
+			if (getFrame() >= maxFrame)
+				setFrame(8);
 
-            //Á¶±İ¾¿ ¾Æ·¡·Î ³»·Á¿Â´Ù
-            _trapMoveCoolDown -= TIMEMANAGER->getElapsedTime();
-            if (_trapMoveCoolDown <= 0.f)
-            {
-                _trapMoveCoolDown = _TRAP_MOVE_COOLTIME;
-				if (_start.y + 2.f <= BOARD_STARTY + BOARD_HEIGHT - _HEIGHT) //ºüÁ®³ª°¡Áö ¾Ê°Ô Ã³¸®
+			//ì¡°ê¸ˆì”© ì•„ë˜ë¡œ ë‚´ë ¤ì˜¨ë‹¤
+			_trapMoveCoolDown -= TIMEMANAGER->getElapsedTime();
+			if (_trapMoveCoolDown <= 0.f)
+			{
+				_trapMoveCoolDown = _TRAP_MOVE_COOLTIME;
+				if (_start.y + 2.f <= BOARD_STARTY + BOARD_HEIGHT - _HEIGHT) //ë¹ ì ¸ë‚˜ê°€ì§€ ì•Šê²Œ ì²˜ë¦¬
 					_start.y += 2.f;
-            }
+			}
 
 			int currentTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 			//cout << currentTime - _startTime << endl;
-            if (currentTime - _startTime > 7) //7ÃÊ°¡ Áö³ª¸é Á×Àº »óÅÂ·Î!!
-            {
-				_startTime = static_cast<int>(TIMEMANAGER->getWorldTime()); //Á×°í³ª¼­ ¸îÃÊ ½Ã°£ Àç±âÀ§ÇÔ
+			if (currentTime - _startTime > 7) //7ì´ˆê°€ ì§€ë‚˜ë©´ ì£½ì€ ìƒíƒœë¡œ!!
+			{
+				_startTime = static_cast<int>(TIMEMANAGER->getWorldTime()); //ì£½ê³ ë‚˜ì„œ ëª‡ì´ˆ ì‹œê°„ ì¬ê¸°ìœ„í•¨
 				_previousState = _currentState;
-                _currentState = PlayerStateTag::Die;
-            }
+				_currentState = PlayerStateTag::Die;
+			}
 
-            //°¤ÇûÀ» ¶§ÀÇ Å°º¸µå Ã³¸®
-            if ( (_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_UP)) ||
-				 (_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_UP)) ||
-			     (_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('R')))
-            {
-                if (_start.y - _speed >= BOARD_STARTY)
-                    _start.y -= _speed;
-            }
-            else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
-				     (_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
-				     (_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('F')))
-            {
-                if (_start.y + _speed <= BOARD_STARTY + BOARD_HEIGHT - _HEIGHT)
-                    _start.y += _speed;
-            }
-            else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
-				     (_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
-				     (_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('D')))
-            {
-                if (_start.x - _speed >= BOARD_STARTX)
-                    _start.x -= _speed;
-            }
-            else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
-				     (_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
-				     (_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('G')))
-            {
-                if (_start.x + _speed <= BOARD_STARTX + BOARD_WIDTH - _WIDTH)
-                    _start.x += _speed;
-            }    
-        }
+			//ê°‡í˜”ì„ ë•Œì˜ í‚¤ë³´ë“œ ì²˜ë¦¬
+			if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_UP)) ||
+				(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_UP)) ||
+				(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('R')))
+			{
+				if (_start.y - _speed >= BOARD_STARTY)
+					_start.y -= _speed;
+			}
+			else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
+				(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_DOWN)) ||
+				(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('F')))
+			{
+				if (_start.y + _speed <= BOARD_STARTY + BOARD_HEIGHT - _HEIGHT)
+					_start.y += _speed;
+			}
+			else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
+				(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_LEFT)) ||
+				(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('D')))
+			{
+				if (_start.x - _speed >= BOARD_STARTX)
+					_start.x -= _speed;
+			}
+			else if ((_playerType == PlayerTypeTag::SoloPlayer && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
+				(_playerType == PlayerTypeTag::Player2 && KEYMANAGER->isStayKeyDown(VK_RIGHT)) ||
+				(_playerType == PlayerTypeTag::Player1 && KEYMANAGER->isStayKeyDown('G')))
+			{
+				if (_start.x + _speed <= BOARD_STARTX + BOARD_WIDTH - _WIDTH)
+					_start.x += _speed;
+			}
+		}
 		else if (_currentState == PlayerStateTag::Die)
 		{
-			GAMESTATEMANAGER->setGameOver(true);//°ÔÀÓ¿À¹ö »óÅÂ·Î ¸¸µç´Ù
+			GAMESTATEMANAGER->setGameOver(true);//ê²Œì„ì˜¤ë²„ ìƒíƒœë¡œ ë§Œë“ ë‹¤
 			if (_currentState != _previousState)
 			{
 				SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::PlayerDie), SoundTypeTag::PlayerDie);
@@ -158,12 +167,12 @@ void Player::update()
 			else
 				setFrame(maxFrame);
 
-			//Á×ÀºÁö 5ÃÊ µÚ¿¡ °ÔÀÓ¿ÀºêÁ§Æ® ¸Å´ÏÀú¿¡¼­ »èÁ¦
+			//ì£½ì€ì§€ 5ì´ˆ ë’¤ì— ê²Œì„ì˜¤ë¸Œì íŠ¸ ë§¤ë‹ˆì €ì—ì„œ ì‚­ì œ
 			int currentTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 			if (currentTime - _startTime > 5)
 				GAMEOBJMANGER->removeObj(getId());
 
-		} //Á×Àº °æ¿ì ³¡
+		} //ì£½ì€ ê²½ìš° ë
 		else if (_currentState == PlayerStateTag::Live)
 		{
 			if (_currentState != _previousState)
@@ -174,7 +183,7 @@ void Player::update()
 			}
 			int maxFrame = IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX();
 			animation(maxFrame);
-			if (getFrame() >= maxFrame) //ÇÁ·¹ÀÓ ´Ù µ¹¸é Jump»óÅÂ·Î
+			if (getFrame() >= maxFrame) //í”„ë ˆì„ ë‹¤ ëŒë©´ Jumpìƒíƒœë¡œ
 			{
 				_previousState = _currentState;
 				_currentState = PlayerStateTag::Jump;
@@ -189,11 +198,11 @@ void Player::update()
 			}
 			animation(IMAGEMANAGER->findImage(getStrKey())->getMaxFrameX());
 		}
-		else 
-        {	
+		else
+		{
 			if (!GAMESTATEMANAGER->getGameOver())
 			{
-				// AI ÄÁÆ®·Ñ·¯°¡ ÀÖÀ¸¸é AI Çàµ¿ »ç¿ë
+				// AI ì»¨íŠ¸ë¡¤ëŸ¬ê°€ ìˆìœ¼ë©´ AI í–‰ë™ ì‚¬ìš©
 				AIAction aiAction = AIAction::IDLE;
 				if (_isAI && _aiController)
 				{
@@ -202,7 +211,7 @@ void Player::update()
 					aiAction = _aiController->getAction(state, playerIndex);
 				}
 
-				//¹°Ç³¼± ³õ±â
+				//ë¬¼í’ì„  ë†“ê¸°
 				bool shouldPlaceBomb = false;
 				if (_isAI)
 				{
@@ -217,24 +226,31 @@ void Player::update()
 
 				if (shouldPlaceBomb)
 				{
-					if (!_check)
+					// ìŠ¤í° ë³´í˜¸ ì‹œê°„ ì²´í¬ (ì´ˆë°˜ 3ì´ˆ ë™ì•ˆ ë¬¼í’ì„  ì„¤ì¹˜ ê¸ˆì§€)
+					int currentTime = static_cast<int>(TIMEMANAGER->getWorldTime());
+					bool canPlaceBomb = (currentTime >= _spawnProtectionTime);
+
+					if (canPlaceBomb)
 					{
-						_check = true;
-						SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::BombSet), SoundTypeTag::BombSet);
-					}
-					MapSpace m = centerToMapSpace(_center.x, _center.y);
-					if (!PlayScene::mapArr[m.row][m.col].isBomb)             //¹°Ç³¼±ÀÌ ÀÖ´Â °÷¿£ ´Ù½Ã ¹°Ç³¼±À» µÎÁö ¸øÇÑ´Ù
-					{
-						if (_usedBombs < _usableBombs)                      //»ç¿ëÇÑ ¹°Ç³¼±Àº »ç¿ëÇÒ ¼ö ÀÖ´Â ¹°Ç³¼±ÀÇ °³¼ö¸¦ ³ÑÁö ¾Ê¾Æ¾ßÇÑ´Ù
+						if (!_check)
 						{
-							Bomb* bomb = new Bomb(this, _center, _power);          //¹°Ç³¼±»ı¼ºÇÏ±â
-							GAMEOBJMANGER->registerObj(bomb);
-							_usedBombs++;
+							_check = true;
+							SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::BombSet), SoundTypeTag::BombSet);
+						}
+						MapSpace m = centerToMapSpace(_center.x, _center.y);
+						if (!PlayScene::mapArr[m.row][m.col].isBomb)             //ë¬¼í’ì„ ì´ ìˆëŠ” ê³³ì—” ë‹¤ì‹œ ë¬¼í’ì„ ì„ ë‘ì§€ ëª»í•œë‹¤
+						{
+							if (_usedBombs < _usableBombs)                      //ì‚¬ìš©í•œ ë¬¼í’ì„ ì€ ì‚¬ìš©í•  ìˆ˜ ìˆëŠ” ë¬¼í’ì„ ì˜ ê°œìˆ˜ë¥¼ ë„˜ì§€ ì•Šì•„ì•¼í•œë‹¤
+							{
+								Bomb* bomb = new Bomb(this, _center, _power);          //ë¬¼í’ì„ ìƒì„±í•˜ê¸°
+								GAMEOBJMANGER->registerObj(bomb);
+								_usedBombs++;
+							}
 						}
 					}
 				}
 
-				// ÀÌµ¿ Ã³¸®
+				// ì´ë™ ì²˜ë¦¬
 				bool moveUp = false, moveDown = false, moveLeft = false, moveRight = false;
 
 				if (_isAI)
@@ -328,17 +344,17 @@ void Player::update()
 						_start.x += _speed;
 					}
 				}
-				else // Å° ÀÔ·ÂÀÌ ¾ø´Â °æ¿ì
+				else // í‚¤ ì…ë ¥ì´ ì—†ëŠ” ê²½ìš°
 				{
 					if (_currentState == PlayerStateTag::Left || _currentState == PlayerStateTag::Right ||
 						_currentState == PlayerStateTag::Up || _currentState == PlayerStateTag::Down)
 					{
-						//Ä³¸¯ÅÍ´Â Ç×»ó 0ÀÌ³ª 4ÇÁ·¹ÀÓÀ¸·Î ³¡³ª¾ßÇÔ
+						//ìºë¦­í„°ëŠ” í•­ìƒ 0ì´ë‚˜ 4í”„ë ˆì„ìœ¼ë¡œ ëë‚˜ì•¼í•¨
 						int frameX = IMAGEMANAGER->findImage(getStrKey())->getFrameX();
 						if (frameX != 0 || frameX != 4)
 							setFrame(0);
 
-						//Å°ÀÔ·ÂÀÌ ¾ø°í, ÀÏÁ¤½Ã°£ÀÌ Áö³ª¸é Á¤¸éÀ» ¹Ù¶óº»´Ù
+						//í‚¤ì…ë ¥ì´ ì—†ê³ , ì¼ì •ì‹œê°„ì´ ì§€ë‚˜ë©´ ì •ë©´ì„ ë°”ë¼ë³¸ë‹¤
 						int currentTime = static_cast<int>(TIMEMANAGER->getWorldTime());
 						if (currentTime - _startTime > 3)
 						{
@@ -348,48 +364,48 @@ void Player::update()
 						}
 
 					}
-				}//Å° ÀÔ·ÂÀÌ ¾ø´Â °æ¿ì 
-			}//°ÔÀÓ¿À¹ö»óÅÂ°¡ ¾Æ´Ñ°æ¿ì ³¡
-        } //·¹µğµµ Æ®·¦µµ Á×Àº»óÅÂµµ ¾Æ´Ñ°æ¿ì
+				}//í‚¤ ì…ë ¥ì´ ì—†ëŠ” ê²½ìš° 
+			}//ê²Œì„ì˜¤ë²„ìƒíƒœê°€ ì•„ë‹Œê²½ìš° ë
+		} //ë ˆë””ë„ íŠ¸ë©ë„ ì£½ì€ìƒíƒœë„ ì•„ë‹Œê²½ìš°
 
-        setCenter();         //Áß½ÉÁÂÇ¥ ¾÷µ¥ÀÌÆ®
-        setCollisionStart(); //Ãæµ¹»ç°¢Çü ÁÂ»ó´Ü ¾÷µ¥ÀÌÆ®
-        setBodyStart();      //¸öÅë ÁÂ»ó´Ü ¾÷µ¥ÀÌÆ®
-    }//gameStart ³¡
+		setCenter();         //ì¤‘ì‹¬ì¢Œí‘œ ì—…ë°ì´íŠ¸
+		setCollisionStart(); //ì¶©ëŒì‚¬ê°í˜• ì¢Œìƒë‹¨ ì—…ë°ì´íŠ¸
+		setBodyStart();      //ëª¸í†µ ì¢Œìƒë‹¨ ì—…ë°ì´íŠ¸
+	}//gameStart ë
 }
 
 void Player::render(HDC hdc)
 {
-    //TODO: ±×¸²ÀÚ - ÀÌ°Å ¹°ÁÙ±âº¸´Ù ¾Æ·¡ ±×·ÁÁ®¾ßÇØ¼­ ³ªÁß¿¡ °ÔÀÓ¿ÀºêÁ§Æ®·Î »©¾ßÇÒµí
-    //if (_currentState == PlayerStateTag::Trap)
-    //    IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 16.f), 200);
-    //else if (_currentState == PlayerStateTag::Die && _flag)
-    //{
-    //    if(getFrame() > 3)
-    //        IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 40.f), 200);
-    //}
-    //else
-    //    IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 3.f), 200);
-    //
+	//TODO: ê·¸ë¦¼ì - ì´ê±° ë¬¼ì¤„ê¸°ë³´ë‹¤ ì•„ë˜ ê·¸ë ¤ì ¸ì•¼í•´ì„œ ë‚˜ì¤‘ì— ê²Œì„ì˜¤ë¸Œì íŠ¸ë¡œ ë¹¼ì•¼í• ë“¯
+	//if (_currentState == PlayerStateTag::Trap)
+	//    IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 16.f), 200);
+	//else if (_currentState == PlayerStateTag::Die && _flag)
+	//{
+	//    if(getFrame() > 3)
+	//        IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 40.f), 200);
+	//}
+	//else
+	//    IMAGEMANAGER->findImage("playerShadow")->alphaRender(hdc, static_cast<int>(_center.x - 21.f), static_cast<int>(_center.y + 3.f), 200);
+	//
 
-    if (_currentState == PlayerStateTag::Ready) //10ÇÈ¼¿ yÃàÀ» ¿Ã·Á±×·ÁÁÖ±â À§ÇÔ
-        IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 32.f), static_cast<int>(_center.y - 65.f), getFrame(), 0);
-    else if (_currentState == PlayerStateTag::Trap || _currentState == PlayerStateTag::Die) //¾êµµ ÁÂÇ¥Á¶Á¤À§ÇÔ
-        IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 44.f), static_cast<int>(_center.y - 76.f), getFrame(), 0);
-    else //±âº»
-        IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 32.f), static_cast<int>(_center.y - 55.f), getFrame(), 0);
+	if (_currentState == PlayerStateTag::Ready) //10í”½ì…€ yì¶•ì„ ì˜¬ë ¤ê·¸ë ¤ì£¼ê¸° ìœ„í•¨
+		IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 32.f), static_cast<int>(_center.y - 65.f), getFrame(), 0);
+	else if (_currentState == PlayerStateTag::Trap || _currentState == PlayerStateTag::Die) //ì–˜ë„ ì¢Œí‘œì¡°ì •ìœ„í•¨
+		IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 44.f), static_cast<int>(_center.y - 76.f), getFrame(), 0);
+	else //ê¸°ë³¸
+		IMAGEMANAGER->findImage(getStrKey())->frameRender(hdc, static_cast<int>(_center.x - 32.f), static_cast<int>(_center.y - 55.f), getFrame(), 0);
 
 
-	//À§¿¡ 1pÀÎÁö 2pÀÎÁö ¾Ë·ÁÁÜ
+	//ìœ„ì— 1pì¸ì§€ 2pì¸ì§€ ì•Œë ¤ì¤Œ
 	if (_playerType == PlayerTypeTag::Player1)
 		IMAGEMANAGER->findImage("player1")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
-	else if(_playerType == PlayerTypeTag::Player2)
+	else if (_playerType == PlayerTypeTag::Player2)
 		IMAGEMANAGER->findImage("player2")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
 	else if (_playerType == PlayerTypeTag::SoloPlayer)
 		IMAGEMANAGER->findImage("soloPlayer")->render(hdc, static_cast<int>(_center.x - 12.f), static_cast<int>(_center.y - 90.f));
 
-    //µğ¹ö±ë¿ë
-    //debug(hdc);
+	//ë””ë²„ê¹…ìš©
+	//debug(hdc);
 }
 
 void Player::release()
@@ -399,25 +415,25 @@ void Player::release()
 
 void Player::onCollisionEnter(GameObject* other, RECT area)
 {
-    switch (other->getTag())
-    {
-    case GameObjectTag::Wave: //¹°ÁÙ±â¿¡ ¸Â¾ÒÀ¸¸é
-    case GameObjectTag::WaveStartingPoint:
-    {
-        _previousState = _currentState;
-        _currentState = PlayerStateTag::Trap;
-    }
-        break;
+	switch (other->getTag())
+	{
+	case GameObjectTag::Wave: //ë¬¼ì¤„ê¸°ì— ë§ì•˜ìœ¼ë©´
+	case GameObjectTag::WaveStartingPoint:
+	{
+		_previousState = _currentState;
+		_currentState = PlayerStateTag::Trap;
+	}
+	break;
 	case GameObjectTag::Item:
 	{
 		SOUNDMANAGER->play(static_cast<int>(SoundTypeTag::EatItem), SoundTypeTag::EatItem);
 		Item* item = dynamic_cast<Item*>(other);
-		//itemÀÇ Å¸ÀÔ¿¡ µû¶ó ÇÃ·¹ÀÌ¾îÀÇ ¼Ó¼ºÀÌ ´Ş¶óÁø´Ù
-		//ÇöÀç itemÀº ¹°Ç³¼±, ¹°¾à, ¸Æ½º ¹°¾à, ½ºÇÇµå°¡ ÀÖ°í Á¦ÇÑÀÌ ÀÖÀ¸¹Ç·Î Á¶°Ç¹® Ã³¸®ÇÏ±â
+		//itemì˜ íƒ€ì…ì— ë”°ë¼ í”Œë ˆì´ì–´ì˜ ì†ì„±ì´ ë‹¬ë¼ì§„ë‹¤
+		//í˜„ì¬ itemì€ ë¬¼í’ì„ , ë¬¼ì•½, ë§¥ìŠ¤ ë¬¼ì•½, ìŠ¤í”¼ë“œê°€ ìˆê³  ì œí•œì´ ìˆìœ¼ë¯€ë¡œ ì¡°ê±´ë¬¸ ì²˜ë¦¬í•˜ê¸°
 		switch (item->getItemType())
 		{
 		case ItemTypeTag::Ballon:
-			if(_usableBombs < 6)
+			if (_usableBombs < 6)
 				_usableBombs++;
 			break;
 		case ItemTypeTag::Potion:
@@ -433,28 +449,28 @@ void Player::onCollisionEnter(GameObject* other, RECT area)
 				_speed += 1.f;
 			break;
 		}
-	
+
 	}
-		break;
-    }//switch ³¡
+	break;
+	}//switch ë
 }
 
 void Player::setCenter()
 {
-    _center.x = _start.x + (_WIDTH / 2) + 1;
-    _center.y = _start.y + (_HEIGHT / 2);
+	_center.x = _start.x + (_WIDTH / 2) + 1;
+	_center.y = _start.y + (_HEIGHT / 2);
 }
 
 void Player::setCollisionStart()
 {
-    _collisionStart.x = _center.x - 10;
-    _collisionStart.y = _center.y - 8;
+	_collisionStart.x = _center.x - 10;
+	_collisionStart.y = _center.y - 8;
 }
 
 void Player::setBodyStart()
 {
-    _bodyStart.x = _center.x - 21;
-    _bodyStart.y = _center.y - 8;
+	_bodyStart.x = _center.x - 21;
+	_bodyStart.y = _center.y - 8;
 }
 
 void Player::changeUsedBombs()
@@ -464,63 +480,63 @@ void Player::changeUsedBombs()
 
 string Player::showPlayerStateForDebug(PlayerStateTag state)
 {
-    switch (state)
-    {
-    case PlayerStateTag::Not:
-        return "Not";
-    case PlayerStateTag::Ready:
-        return "Ready";
-    case PlayerStateTag::Wait:
-        return "Wait";
-    case PlayerStateTag::Up:
-        return "Up";
-    case PlayerStateTag::Down:
-        return "Down";
-    case PlayerStateTag::Left:
-        return "Left";
-    case PlayerStateTag::Right:
-        return "Right";
-    case PlayerStateTag::Trap:
-        return "Trap";
-    case PlayerStateTag::Die:
-        return "Die";
+	switch (state)
+	{
+	case PlayerStateTag::Not:
+		return "Not";
+	case PlayerStateTag::Ready:
+		return "Ready";
+	case PlayerStateTag::Wait:
+		return "Wait";
+	case PlayerStateTag::Up:
+		return "Up";
+	case PlayerStateTag::Down:
+		return "Down";
+	case PlayerStateTag::Left:
+		return "Left";
+	case PlayerStateTag::Right:
+		return "Right";
+	case PlayerStateTag::Trap:
+		return "Trap";
+	case PlayerStateTag::Die:
+		return "Die";
 	case PlayerStateTag::Live:
 		return "Live";
-    default:
-        return "?";
-    }
+	default:
+		return "?";
+	}
 }
 
 void Player::debug(HDC hdc)
 {
-    //µğ¹ö±ë¿ë »ç°¢Çü
-    if (_currentState == PlayerStateTag::Trap)
-    {
-        PenWithHatchBrush(1, RGB(244, 66, 66), RGB(244, 66, 66), HS_BDIAGONAL)(hdc, [hdc, this]
-        {
-            drawRectCenter(hdc, _center.x, _center.y, _WIDTH, _HEIGHT);
-        });
-    }
-    else
-    {
-        PenWithHatchBrush(1, BLACK, RGB(74, 76, 76), HS_BDIAGONAL)(hdc, [hdc, this]
-        {
-            drawRectCenter(hdc, _center.x, _center.y, _WIDTH, _HEIGHT);
-        });
-    }
-    ////µğ¹ö±ë¿ë ¸öÅë »ç°¢Çü
-    PenWithBrush(1, RGB(0, 0, 255), RGB(0, 0, 255))(hdc, [hdc, this]
-    {
-        drawRect(hdc, _bodyStart.x, _bodyStart.y, _BODY_WIDTH, _BODY_HEIGHT);
-    });
+	//ë””ë²„ê¹…ìš© ì‚¬ê°í˜•
+	if (_currentState == PlayerStateTag::Trap)
+	{
+		PenWithHatchBrush(1, RGB(244, 66, 66), RGB(244, 66, 66), HS_BDIAGONAL)(hdc, [hdc, this]
+			{
+				drawRectCenter(hdc, _center.x, _center.y, _WIDTH, _HEIGHT);
+			});
+	}
+	else
+	{
+		PenWithHatchBrush(1, BLACK, RGB(74, 76, 76), HS_BDIAGONAL)(hdc, [hdc, this]
+			{
+				drawRectCenter(hdc, _center.x, _center.y, _WIDTH, _HEIGHT);
+			});
+	}
+	////ë””ë²„ê¹…ìš© ëª¸í†µ ì‚¬ê°í˜•
+	PenWithBrush(1, RGB(0, 0, 255), RGB(0, 0, 255))(hdc, [hdc, this]
+		{
+			drawRect(hdc, _bodyStart.x, _bodyStart.y, _BODY_WIDTH, _BODY_HEIGHT);
+		});
 
-    ////µğ¹ö±ë¿ë Ãæµ¹ »ç°¢Çü
-    PenWithBrush(1, RGB(0, 255, 0), RGB(0, 255, 0))(hdc, [hdc, this]
-    {
-        drawRect(hdc, _collisionStart.x, _collisionStart.y, _COLLISION_WIDTH, _COLLISION_HEIGHT);
-    });
+	////ë””ë²„ê¹…ìš© ì¶©ëŒ ì‚¬ê°í˜•
+	PenWithBrush(1, RGB(0, 255, 0), RGB(0, 255, 0))(hdc, [hdc, this]
+		{
+			drawRect(hdc, _collisionStart.x, _collisionStart.y, _COLLISION_WIDTH, _COLLISION_HEIGHT);
+		});
 
-    //µğ¹ö±ë¿ë Ä³¸¯ÅÍ ÁÂ»ó´Ü À§Ä¡
+	//ë””ë²„ê¹…ìš© ìºë¦­í„° ì¢Œìƒë‹¨ ìœ„ì¹˜
 	if (_playerType == PlayerTypeTag::Player1 || _playerType == PlayerTypeTag::SoloPlayer)
 	{
 		Text(15, 150, 120, TEXT("Player1=========="), WHITE)(hdc);

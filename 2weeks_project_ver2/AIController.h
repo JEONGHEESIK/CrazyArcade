@@ -25,6 +25,8 @@ struct GameState
     int player1_power;
     int player1_state;  // PlayerStateTag를 int로 변환
     bool player1_alive;
+    bool player1_trapped;  // 물방울에 갇혔는지
+    int player1_trap_timer;  // 물방울 남은 시간 (프레임)
 
     // 플레이어 2 정보
     float player2_x;
@@ -34,6 +36,8 @@ struct GameState
     int player2_power;
     int player2_state;
     bool player2_alive;
+    bool player2_trapped;  // 물방울에 갇혔는지
+    int player2_trap_timer;  // 물방울 남은 시간 (프레임)
 
     // 맵 정보 (13x15)
     int map_bombs[13][15];      // 0: 없음, 1: 물풍선 있음
@@ -79,7 +83,7 @@ public:
 
     bool connect();
     void disconnect();
-    
+
     virtual AIAction getAction(const GameState& state, int playerIndex) override;
     virtual void reset() override;
 

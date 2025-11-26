@@ -19,9 +19,14 @@ cmd == comman Param == Parameter
 */
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszcmParam, int cmdShow)
 {
+    AllocConsole();
+    FILE* dummy;
+    freopen_s(&dummy, "CONOUT$", "w", stdout);
+    freopen_s(&dummy, "CONOUT$", "w", stderr);
+
     MSG message; //윈도우 메세지
     WNDCLASS wndClass; //윈도우 클래스(정보)
-                       /*메인 게임 할당*/
+    /*메인 게임 할당*/
     mg = new MainGame;
 
     _hInstance = hInstance;

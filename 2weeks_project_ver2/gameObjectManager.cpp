@@ -5,15 +5,17 @@
 #include "wave.h"
 #include "waveStartingPoint.h"
 #include "item.h"
+#include <algorithm>  // std::remove
 
 GameObjectManager::GameObjectManager()
 {
     _instance_id = 0;
+    _lastUpdateObj = nullptr;
 
     //나중에 푸쉬백 할 수록 나중에 그려짐
     _layerOrders.push_back(GameObjectTag::WaveStartingPoint);
     _layerOrders.push_back(GameObjectTag::Wave);
-	_layerOrders.push_back(GameObjectTag::Item);
+    _layerOrders.push_back(GameObjectTag::Item);
     _layerOrders.push_back(GameObjectTag::Bomb);
     _layerOrders.push_back(GameObjectTag::Player);
     _layerOrders.push_back(GameObjectTag::DesignElement);
@@ -29,27 +31,48 @@ void GameObjectManager::registerObj(GameObject* obj)
     //인스턴스별로 개별 ID를 지정해준뒤, vector에 집어넣음
     obj->setId(_instance_id++);
     _gameObj.push_back(obj);
-	obj->init(); //초기화를 여기서 해줌
+    obj->init(); //초기화를 여기서 해줌
 }
-//객체삭제
+//객체삭제 (즉시 삭제하지 않고 대기 목록에 추가)
 void GameObjectManager::removeObj(int id)
 {
-    for (size_t i = 0; i < _gameObj.size(); ++i)
-    {
-        if (_gameObj[i]->getId() == id)
-            _gameObj.erase(_gameObj.begin() + i);
-    }
+    _removeQueue.push_back(id);
 }
 
 void GameObjectManager::removeObjAll()
 {
-	_gameObj.resize(0); //모든 오브젝트들 삭제
+    // 메모리 해제
+    for (auto obj : _gameObj)
+    {
+        if (obj != nullptr)
+        {
+            delete obj;
+        }
+    }
+    _gameObj.clear();
+    _removeQueue.clear();
 }
 
 void GameObjectManager::updateObj()
 {
-    for (auto g : _gameObj)
+    // 벡터 크기를 미리 저장 (루프 중 변경될 수 있음)
+    size_t objCount = _gameObj.size();
+    for (size_t i = 0; i < objCount; ++i)
     {
+        // 인덱스가 범위를 벗어나면 중단
+        if (i >= _gameObj.size())
+            break;
+
+        auto g = _gameObj[i];
+        if (g == nullptr)
+        {
+            cout << "[WARN] null object in _gameObj" << endl;
+            continue;
+        }
+
+        _lastUpdateObj = g;  // 디버그용: 현재 업데이트 중인 객체 저장
+        // cout << "[TRACE] updating id=" << g->getId()
+        //      << ", tag=" << static_cast<int>(g->getTag()) << endl;
         g->update();
     }
 
@@ -59,6 +82,32 @@ void GameObjectManager::updateObj()
         //게임오브젝트간 충돌여부를 계속 체크
         notifyCollisions();
     }//gamestart
+
+    // 프레임 끝에서 삭제 대기 목록 처리
+    if (!_removeQueue.empty())
+    {
+        // 먼저 nullptr로 설정
+        for (int id : _removeQueue)
+        {
+            for (size_t i = 0; i < _gameObj.size(); ++i)
+            {
+                if (_gameObj[i] && _gameObj[i]->getId() == id)
+                {
+                    delete _gameObj[i];
+                    _gameObj[i] = nullptr;
+                    break;
+                }
+            }
+        }
+
+        // nullptr 제거
+        _gameObj.erase(
+            std::remove(_gameObj.begin(), _gameObj.end(), nullptr),
+            _gameObj.end()
+        );
+
+        _removeQueue.clear();
+    }
 }
 
 void GameObjectManager::renderObj(HDC hdc)
@@ -74,16 +123,22 @@ void GameObjectManager::renderObj(HDC hdc)
     */
     map<GameObjectTag, vector<GameObject*>> m;
     for (auto go : _gameObj)
-        m[go->getTag()].push_back(go);
+    {
+        if (go != nullptr)  // nullptr 체크
+            m[go->getTag()].push_back(go);
+    }
 
     for (auto tag : _layerOrders)
     {
         for (auto go : m[tag])
-            go->render(hdc);
+        {
+            if (go != nullptr)  // nullptr 체크 추가
+                go->render(hdc);
+        }
     }
 
-	//디버그용
-	//debug(hdc);
+    //디버그용
+    //debug(hdc);
 }
 
 void GameObjectManager::releaseObj()
@@ -106,7 +161,10 @@ void GameObjectManager::notifyCollisions()
     RECT rcTemp;
 
     for (auto go : _gameObj)
-        m[go->getTag()].push_back(go);
+    {
+        if (go != nullptr)  // nullptr 체크
+            m[go->getTag()].push_back(go);
+    }
 
     /* 플레이어와 물풍선간의 충돌*/
     for (auto player : m[GameObjectTag::Player])
@@ -123,8 +181,8 @@ void GameObjectManager::notifyCollisions()
                 if (!IntersectRect(&rcTemp, &playerBodyRect, &bombRect))
                 {
                     //폭탄을 놓고난 직후에, 충돌이 아닌상태가 되면 '폭탄을 놓고난 직후가 아닌상태'로 변경
-					if (b->getWhoUser() == p) //단, 폭탄을 놓은 그 자신만 해당하게끔 하기 위함
-						PlayScene::mapArr[mapSpace.row][mapSpace.col].rightAfter = false;
+                    if (b->getWhoUser() == p) //단, 폭탄을 놓은 그 자신만 해당하게끔 하기 위함
+                        PlayScene::mapArr[mapSpace.row][mapSpace.col].rightAfter = false;
                 }
             }
             else //폭탄을 놓고난 직후가 아닌데 충돌이 일어난 경우에만 캐릭터를 충돌한 만큼 밀어버린다
@@ -162,7 +220,7 @@ void GameObjectManager::notifyCollisions()
             Player* p = dynamic_cast<Player*>(player);
             WaveStartingPoint* wsp = dynamic_cast<WaveStartingPoint*>(waveStartingPoint);
             RECT playerCollisionRect = makeRect(p->getCollisionStartX(), p->getCollisionStartY(), p->getCollisionWidth(), p->getCollisionHeight());
-            RECT waveStartingPointRect= makeRect(wsp->getStartX(), wsp->getStartY(), wsp->getSize(), wsp->getSize());
+            RECT waveStartingPointRect = makeRect(wsp->getStartX(), wsp->getStartY(), wsp->getSize(), wsp->getSize());
             if (IntersectRect(&rcTemp, &playerCollisionRect, &waveStartingPointRect))
             {
                 player->onCollisionEnter(wsp, rcTemp);
@@ -171,161 +229,161 @@ void GameObjectManager::notifyCollisions()
         }
     }
 
-	/*플레이어와 아이템 간의 충돌*/
-	for (auto player : m[GameObjectTag::Player])
-	{
-		for (auto item : m[GameObjectTag::Item])
-		{
-			Player* p = dynamic_cast<Player*>(player);
-			Item * i = dynamic_cast<Item*>(item);
-			RECT playerCollisionRect = makeRect(p->getCollisionStartX(), p->getCollisionStartY(), p->getCollisionWidth(), p->getCollisionHeight());
-			RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
-			if (IntersectRect(&rcTemp, &playerCollisionRect, &itemRect))
-			{
-				//충돌한 아이템을 삭제한다
-				GAMEOBJMANGER->removeObj(i->getId());
-				player->onCollisionEnter(item, rcTemp);
-			}
-		}
-	}
+    /*플레이어와 아이템 간의 충돌*/
+    for (auto player : m[GameObjectTag::Player])
+    {
+        for (auto item : m[GameObjectTag::Item])
+        {
+            Player* p = dynamic_cast<Player*>(player);
+            Item* i = dynamic_cast<Item*>(item);
+            RECT playerCollisionRect = makeRect(p->getCollisionStartX(), p->getCollisionStartY(), p->getCollisionWidth(), p->getCollisionHeight());
+            RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
+            if (IntersectRect(&rcTemp, &playerCollisionRect, &itemRect))
+            {
+                //충돌한 아이템을 삭제한다
+                GAMEOBJMANGER->removeObj(i->getId());
+                player->onCollisionEnter(item, rcTemp);
+            }
+        }
+    }
 
-	/* 아이템과 물줄기 or wave Start Point 간의 충돌*/
-	for (auto item : m[GameObjectTag::Item])
-	{
-		for (auto wave : m[GameObjectTag::Wave])
-		{
-			Wave* w = dynamic_cast<Wave*>(wave);
-			Item * i = dynamic_cast<Item*>(item);
-			RECT waveRect = makeRect(w->getStartX(), w->getStartY(), w->getSize(), w->getSize());
-			RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
-			if (IntersectRect(&rcTemp, &waveRect, &itemRect))
-			{
-				//충돌한 아이템을 삭제한다
-				GAMEOBJMANGER->removeObj(i->getId());
-			}
+    /* 아이템과 물줄기 or wave Start Point 간의 충돌*/
+    for (auto item : m[GameObjectTag::Item])
+    {
+        for (auto wave : m[GameObjectTag::Wave])
+        {
+            Wave* w = dynamic_cast<Wave*>(wave);
+            Item* i = dynamic_cast<Item*>(item);
+            RECT waveRect = makeRect(w->getStartX(), w->getStartY(), w->getSize(), w->getSize());
+            RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
+            if (IntersectRect(&rcTemp, &waveRect, &itemRect))
+            {
+                //충돌한 아이템을 삭제한다
+                GAMEOBJMANGER->removeObj(i->getId());
+            }
 
-		}
-	}
-	for (auto item : m[GameObjectTag::Item])
-	{
-		for (auto waveStartingPoint : m[GameObjectTag::WaveStartingPoint])
-		{
-			Item * i = dynamic_cast<Item*>(item);
-			WaveStartingPoint* wsp = dynamic_cast<WaveStartingPoint*>(waveStartingPoint);
-			RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
-			RECT waveStartingPointRect = makeRect(wsp->getStartX(), wsp->getStartY(), wsp->getSize(), wsp->getSize());
-			if (IntersectRect(&rcTemp, &itemRect, &waveStartingPointRect))
-			{
-				//충돌한 아이템을 삭제한다
-				GAMEOBJMANGER->removeObj(i->getId());
-			}
-		}
-	}
+        }
+    }
+    for (auto item : m[GameObjectTag::Item])
+    {
+        for (auto waveStartingPoint : m[GameObjectTag::WaveStartingPoint])
+        {
+            Item* i = dynamic_cast<Item*>(item);
+            WaveStartingPoint* wsp = dynamic_cast<WaveStartingPoint*>(waveStartingPoint);
+            RECT itemRect = makeRect(i->getStartX(), i->getStartY(), i->getSize(), i->getSize());
+            RECT waveStartingPointRect = makeRect(wsp->getStartX(), wsp->getStartY(), wsp->getSize(), wsp->getSize());
+            if (IntersectRect(&rcTemp, &itemRect, &waveStartingPointRect))
+            {
+                //충돌한 아이템을 삭제한다
+                GAMEOBJMANGER->removeObj(i->getId());
+            }
+        }
+    }
 
-	/*풍선이 물줄기에 닿으면 바로 터지게끔!!!*/
-	for (auto bomb : m[GameObjectTag::Bomb])
-	{
+    /*풍선이 물줄기에 닿으면 바로 터지게끔!!!*/
+    for (auto bomb : m[GameObjectTag::Bomb])
+    {
         Bomb* b = dynamic_cast<Bomb*>(bomb);
 
-		for (auto wave : m[GameObjectTag::Wave])
-		{
-			Wave* w = dynamic_cast<Wave*>(wave);
-			RECT bombRect = makeRect(b->getStartX(), b->getStartY(), b->getSize(), b->getSize());
-			RECT waveRect = makeRect(w->getStartX(), w->getStartY(), w->getSize(), w->getSize());
-			if (IntersectRect(&rcTemp, &bombRect, &waveRect))
-			{
-				if (!b->getChainExplosion())
-				{
-					b->setChainExplosion(true);
-					b->changeBombState(BombStateTag::MakeWaveStartingPoint);
-				}
-			}
-		}
-	}
+        for (auto wave : m[GameObjectTag::Wave])
+        {
+            Wave* w = dynamic_cast<Wave*>(wave);
+            RECT bombRect = makeRect(b->getStartX(), b->getStartY(), b->getSize(), b->getSize());
+            RECT waveRect = makeRect(w->getStartX(), w->getStartY(), w->getSize(), w->getSize());
+            if (IntersectRect(&rcTemp, &bombRect, &waveRect))
+            {
+                if (!b->getChainExplosion())
+                {
+                    b->setChainExplosion(true);
+                    b->changeBombState(BombStateTag::MakeWaveStartingPoint);
+                }
+            }
+        }
+    }
 
-	
-	Player* p1 = nullptr;
-	Player* p2 = nullptr;
-	RECT player1Rect;
-	RECT player2Rect;
-	/* 플레이어와 플레이어의 충돌 */
-	for (auto player : m[GameObjectTag::Player])
-	{
-		Player* p = dynamic_cast<Player*>(player);
-		if (p->getPlayerType() == PlayerTypeTag::Player1)
-		{
-			p1 = p;
-			player1Rect = makeRect(p->getStartX(), p->getStartY(), p->getWidth(), p->getHeight());
-		}
-		if (p->getPlayerType() == PlayerTypeTag::Player2)
-		{
-			p2 = p;
-			player2Rect = makeRect(p->getStartX(), p->getStartY(), p->getWidth(), p->getHeight());
-		}
-	
-		if (p1 && p2)
-		{
-			// 둘다 물풍선이 아닐때, 건들면 죽게끔
-			if (IntersectRect(&rcTemp, &player1Rect, &player2Rect))
-			{
-				if (!(p1->getPlayerState() == PlayerStateTag::Trap && p2->getPlayerState() == PlayerStateTag::Trap))
-				{
-					if (p1->getPlayerState() == PlayerStateTag::Trap)
-					{
-						p1->setPlayerState(PlayerStateTag::Die);
-					}
-					else if (p2->getPlayerState() == PlayerStateTag::Trap)
-					{
-						p2->setPlayerState(PlayerStateTag::Die);
-					}
-				}
- 			}
 
-		}
+    Player* p1 = nullptr;
+    Player* p2 = nullptr;
+    RECT player1Rect;
+    RECT player2Rect;
+    /* 플레이어와 플레이어의 충돌 */
+    for (auto player : m[GameObjectTag::Player])
+    {
+        Player* p = dynamic_cast<Player*>(player);
+        if (p->getPlayerType() == PlayerTypeTag::Player1)
+        {
+            p1 = p;
+            player1Rect = makeRect(p->getStartX(), p->getStartY(), p->getWidth(), p->getHeight());
+        }
+        if (p->getPlayerType() == PlayerTypeTag::Player2)
+        {
+            p2 = p;
+            player2Rect = makeRect(p->getStartX(), p->getStartY(), p->getWidth(), p->getHeight());
+        }
 
-	}
+        if (p1 && p2)
+        {
+            // 둘다 물풍선이 아닐때, 건들면 죽게끔
+            if (IntersectRect(&rcTemp, &player1Rect, &player2Rect))
+            {
+                if (!(p1->getPlayerState() == PlayerStateTag::Trap && p2->getPlayerState() == PlayerStateTag::Trap))
+                {
+                    if (p1->getPlayerState() == PlayerStateTag::Trap)
+                    {
+                        p1->setPlayerState(PlayerStateTag::Die);
+                    }
+                    else if (p2->getPlayerState() == PlayerStateTag::Trap)
+                    {
+                        p2->setPlayerState(PlayerStateTag::Die);
+                    }
+                }
+            }
 
-	/* 충돌은 아니지만 그냥 여기 넣어야징 */
-	// 한쪽 플레이어가 죽으면 한쪽 플레이어는 살린다
-	for (auto player : m[GameObjectTag::Player])
-	{
-		Player* p = dynamic_cast<Player*>(player);
-		if (p->getPlayerType() == PlayerTypeTag::Player1)
-		{
-			p1 = p;
-		}
-		if (p->getPlayerType() == PlayerTypeTag::Player2)
-		{
-			p2 = p;
-		}
+        }
 
-		if (p1 && p2)
-		{
-			//어느한쪽이 먼저 죽으면 다른 한쪽을 살린다
-			if (p1->getPlayerState() == PlayerStateTag::Die)
-			{
-				if (!p2->getLive())
-				{
-					if (p2->getPlayerState() == PlayerStateTag::Trap)
-						p2->setPlayerState(PlayerStateTag::Live);
-					else
-						p2->setPlayerState(PlayerStateTag::Jump);
-					p2->setLive(true);
-				}
-			}
-			else if (p2->getPlayerState() == PlayerStateTag::Die)
-			{
-				if (!p1->getLive())
-				{
-					if (p1->getPlayerState() == PlayerStateTag::Trap)
-						p1->setPlayerState(PlayerStateTag::Live);
-					else
-						p1->setPlayerState(PlayerStateTag::Jump);
-					p1->setLive(true);
-				}
-			}
-		}
-	}
+    }
+
+    /* 충돌은 아니지만 그냥 여기 넣어야징 */
+    // 한쪽 플레이어가 죽으면 한쪽 플레이어는 살린다
+    for (auto player : m[GameObjectTag::Player])
+    {
+        Player* p = dynamic_cast<Player*>(player);
+        if (p->getPlayerType() == PlayerTypeTag::Player1)
+        {
+            p1 = p;
+        }
+        if (p->getPlayerType() == PlayerTypeTag::Player2)
+        {
+            p2 = p;
+        }
+
+        if (p1 && p2)
+        {
+            //어느한쪽이 먼저 죽으면 다른 한쪽을 살린다
+            if (p1->getPlayerState() == PlayerStateTag::Die)
+            {
+                if (!p2->getLive())
+                {
+                    if (p2->getPlayerState() == PlayerStateTag::Trap)
+                        p2->setPlayerState(PlayerStateTag::Live);
+                    else
+                        p2->setPlayerState(PlayerStateTag::Jump);
+                    p2->setLive(true);
+                }
+            }
+            else if (p2->getPlayerState() == PlayerStateTag::Die)
+            {
+                if (!p1->getLive())
+                {
+                    if (p1->getPlayerState() == PlayerStateTag::Trap)
+                        p1->setPlayerState(PlayerStateTag::Live);
+                    else
+                        p1->setPlayerState(PlayerStateTag::Jump);
+                    p1->setLive(true);
+                }
+            }
+        }
+    }
 }
 
 string GameObjectManager::showTagForDebug(GameObjectTag tag)
@@ -344,8 +402,8 @@ string GameObjectManager::showTagForDebug(GameObjectTag tag)
         return "Wave";
     case GameObjectTag::WaveStartingPoint:
         return "WaveStartingPoint";
-	case GameObjectTag::Item:
-		return "Item";
+    case GameObjectTag::Item:
+        return "Item";
     default:
         return "?";
     }
@@ -353,10 +411,10 @@ string GameObjectManager::showTagForDebug(GameObjectTag tag)
 
 void GameObjectManager::debug(HDC hdc)
 {
-	Text(15, 5, 80, TEXT("GameObj size: ") + to_string(getGameObjSize()))(hdc);
-	//디버깅용    
-	for (size_t i = 0; i < _gameObj.size(); ++i)
-	{
-		Text(15, 5, 100 + (15 * static_cast<int>(i)), TEXT("ID: ") + to_string(_gameObj[i]->getId()) + TEXT(", TAG: ") + showTagForDebug(_gameObj[i]->getTag()), WHITE)(hdc);
-	}
+    Text(15, 5, 80, TEXT("GameObj size: ") + to_string(getGameObjSize()))(hdc);
+    //디버깅용    
+    for (size_t i = 0; i < _gameObj.size(); ++i)
+    {
+        Text(15, 5, 100 + (15 * static_cast<int>(i)), TEXT("ID: ") + to_string(_gameObj[i]->getId()) + TEXT(", TAG: ") + showTagForDebug(_gameObj[i]->getTag()), WHITE)(hdc);
+    }
 }

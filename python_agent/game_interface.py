@@ -23,7 +23,7 @@ class GameInterface:
     
     def connect(self, timeout=30):
         """
-        게임 서버에 연결
+        게임 서버에 연결 (Python이 클라이언트)
         
         Args:
             timeout: 연결 타임아웃 (초)
@@ -34,7 +34,12 @@ class GameInterface:
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(timeout)
+            
+            print(f"Connecting to C++ game server at {self.host}:{self.port}...")
+            
             self.socket.connect((self.host, self.port))
+            # 연결 후 타임아웃 제거 (무한 대기)
+            self.socket.settimeout(None)
             self.connected = True
             print(f"Connected to game server at {self.host}:{self.port}")
             return True
@@ -79,6 +84,10 @@ class GameInterface:
             json_str = data.decode('utf-8').strip()
             state_dict = json.loads(json_str)
             
+            # 디버그: game_over 값 확인
+            if state_dict.get('game_over', False):
+                print(f"[DEBUG] Received game_over=true from C++ in state JSON")
+            
             # 상태 벡터로 변환
             state_vector = self._dict_to_vector(state_dict)
             
@@ -110,9 +119,44 @@ class GameInterface:
             print(f"Error sending action: {e}")
             return False
     
+    def receive_reward(self):
+        """
+        보상 데이터 수신 (C++에서 전송하는 reward JSON)
+        
+        Returns:
+            (reward, done, info) 튜플 또는 None
+        """
+        if not self.connected:
+            return None
+        
+        try:
+            # JSON 데이터 수신 (개행문자로 구분)
+            data = b""
+            while True:
+                chunk = self.socket.recv(4096)
+                if not chunk:
+                    return None
+                data += chunk
+                if b'\n' in data:
+                    break
+            
+            # JSON 파싱
+            json_str = data.decode('utf-8').strip()
+            reward_dict = json.loads(json_str)
+            
+            reward = reward_dict.get('reward', 0.0)
+            done = reward_dict.get('done', False)
+            info = reward_dict.get('info', '')
+            
+            return (reward, done, info)
+        
+        except Exception as e:
+            print(f"Error receiving reward: {e}")
+            return None
+    
     def reset(self):
         """
-        게임 리셋 요청
+        게임 리셋 요청 (C++가 자동으로 재시작하므로 다음 상태만 받음)
         
         Returns:
             초기 상태 벡터
@@ -121,9 +165,8 @@ class GameInterface:
             return None
         
         try:
-            # RESET 명령 전송
-            self.socket.sendall(b"RESET\n")
-            # 초기 상태 수신
+            # C++가 자동 재시작하므로 RESET 명령 불필요
+            # 다음 상태를 받으면 그것이 새 에피소드의 초기 상태
             return self.receive_state()
         except Exception as e:
             print(f"Error resetting game: {e}")
@@ -139,6 +182,13 @@ class GameInterface:
         Returns:
             상태 벡터 (numpy array, shape=(600,))
         """
+        # game_over 플래그 저장 (done 판정용)
+        self.game_over = state_dict.get('game_over', False)
+        
+        # 디버그: game_over 값 출력
+        if self.game_over:
+            print(f"[DEBUG] game_over=True received from C++")
+        
         vector = []
         
         # 플레이어 정보 (18개 - 물방울 상태 추가!)
@@ -196,12 +246,13 @@ class GameInterface:
 class GameEnvironment:
     """게임 환경 래퍼 (OpenAI Gym 스타일)"""
     
-    def __init__(self, host=None, port=None):
+    def __init__(self, host='127.0.0.1', port=12345):
         self.interface = GameInterface(host, port)
         self.state_size = config.STATE_SIZE
         self.action_size = config.ACTION_SIZE
         self.current_state = None
         self.previous_state = None
+        self.game_over = False  # game_over 플래그 초기화
     
     def connect(self):
         """게임 서버 연결"""
@@ -243,7 +294,7 @@ class GameEnvironment:
         if self.current_state is None:
             return None, 0.0, True, {"error": "Failed to receive state"}
         
-        # 보상 계산
+        # 보상 계산 (game_over 플래그는 _dict_to_vector에서 이미 저장됨)
         reward, done, info = self._calculate_reward()
         
         return self.current_state, reward, done, info
@@ -256,7 +307,7 @@ class GameEnvironment:
             (reward, done, info)
         """
         reward = config.REWARD_TIME_PENALTY  # 기본 시간 패널티
-        done = False
+        done = self.game_over  # C++에서 받은 game_over 플래그 사용
         info = {}
         
         if self.previous_state is None:

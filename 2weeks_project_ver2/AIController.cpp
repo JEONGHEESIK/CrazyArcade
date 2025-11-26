@@ -120,6 +120,8 @@ bool NetworkAIController::sendGameState(const GameState& state, int playerIndex)
         ss << "\"my_power\":" << state.player1_power << ",";
         ss << "\"my_state\":" << state.player1_state << ",";
         ss << "\"my_alive\":" << (state.player1_alive ? "true" : "false") << ",";
+        ss << "\"my_trapped\":" << (state.player1_trapped ? "true" : "false") << ",";
+        ss << "\"my_trap_timer\":" << state.player1_trap_timer << ",";
 
         ss << "\"enemy_x\":" << state.player2_x << ",";
         ss << "\"enemy_y\":" << state.player2_y << ",";
@@ -128,6 +130,8 @@ bool NetworkAIController::sendGameState(const GameState& state, int playerIndex)
         ss << "\"enemy_power\":" << state.player2_power << ",";
         ss << "\"enemy_state\":" << state.player2_state << ",";
         ss << "\"enemy_alive\":" << (state.player2_alive ? "true" : "false") << ",";
+        ss << "\"enemy_trapped\":" << (state.player2_trapped ? "true" : "false") << ",";
+        ss << "\"enemy_trap_timer\":" << state.player2_trap_timer << ",";
     }
     else {
         ss << "\"my_x\":" << state.player2_x << ",";
@@ -137,6 +141,8 @@ bool NetworkAIController::sendGameState(const GameState& state, int playerIndex)
         ss << "\"my_power\":" << state.player2_power << ",";
         ss << "\"my_state\":" << state.player2_state << ",";
         ss << "\"my_alive\":" << (state.player2_alive ? "true" : "false") << ",";
+        ss << "\"my_trapped\":" << (state.player2_trapped ? "true" : "false") << ",";
+        ss << "\"my_trap_timer\":" << state.player2_trap_timer << ",";
 
         ss << "\"enemy_x\":" << state.player1_x << ",";
         ss << "\"enemy_y\":" << state.player1_y << ",";
@@ -145,6 +151,8 @@ bool NetworkAIController::sendGameState(const GameState& state, int playerIndex)
         ss << "\"enemy_power\":" << state.player1_power << ",";
         ss << "\"enemy_state\":" << state.player1_state << ",";
         ss << "\"enemy_alive\":" << (state.player1_alive ? "true" : "false") << ",";
+        ss << "\"enemy_trapped\":" << (state.player1_trapped ? "true" : "false") << ",";
+        ss << "\"enemy_trap_timer\":" << state.player1_trap_timer << ",";
     }
 
     // 맵 정보 (간단하게 1차원 배열로 변환)
@@ -177,8 +185,14 @@ bool NetworkAIController::sendGameState(const GameState& state, int playerIndex)
 
     ss << "\"game_time\":" << state.game_time << ",";
     ss << "\"game_over\":" << (state.game_over ? "true" : "false") << ",";
-    ss << "\"winner\":" << state.winner;
+    ss << "\"winner\":" << state.winner << ",";
+    ss << "\"player_index\":" << playerIndex;
     ss << "}\n";
+
+    // 디버그: game_over 값 출력
+    if (state.game_over) {
+        cout << "[DEBUG] Sending game_over=true to Python (player " << playerIndex << ")" << endl;
+    }
 
     std::string json = ss.str();
     int result = send(socketFd, json.c_str(), static_cast<int>(json.length()), 0);
@@ -208,6 +222,11 @@ AIAction NetworkAIController::receiveAction()
 bool NetworkAIController::sendReward(const RewardInfo& reward)
 {
     if (!connected) return false;
+
+    // 디버그: done=true일 때 로그 출력
+    if (reward.done) {
+        cout << "[REWARD] Sending done=true, reward=" << reward.reward << endl;
+    }
 
     std::stringstream ss;
     ss << "{";
@@ -257,7 +276,11 @@ GameState GameStateExtractor::extractState()
         state.player1_power = player1->getPower();
         state.player1_state = static_cast<int>(player1->getPlayerState());
         state.player1_alive = player1->getLive();
-        // 추가 정보는 Player 클래스에 getter 필요
+
+        // 물방울 상태 체크 (PlayerStateTag::Trap == 7)
+        state.player1_trapped = (player1->getPlayerState() == static_cast<PlayerStateTag>(7));
+        // TODO: trap_timer는 Player 클래스에 getter 추가 필요
+        state.player1_trap_timer = 0;
     }
 
     // Player 2 정보
@@ -269,6 +292,11 @@ GameState GameStateExtractor::extractState()
         state.player2_power = player2->getPower();
         state.player2_state = static_cast<int>(player2->getPlayerState());
         state.player2_alive = player2->getLive();
+
+        // 물방울 상태 체크 (PlayerStateTag::Trap == 7)
+        state.player2_trapped = (player2->getPlayerState() == static_cast<PlayerStateTag>(7));
+        // TODO: trap_timer는 Player 클래스에 getter 추가 필요
+        state.player2_trap_timer = 0;
     }
 
     // 맵 정보 추출
@@ -281,6 +309,27 @@ GameState GameStateExtractor::extractState()
 
     state.game_time = TIMEMANAGER->getWorldTime();
     state.game_over = GAMESTATEMANAGER->getGameOver();
+
+    // 승자 판정
+    if (state.game_over)
+    {
+        if (!state.player1_alive && state.player2_alive)
+        {
+            state.winner = 2;  // Player 2 승리
+        }
+        else if (state.player1_alive && !state.player2_alive)
+        {
+            state.winner = 1;  // Player 1 승리
+        }
+        else
+        {
+            state.winner = 0;  // 무승부 (둘 다 죽음 or 둘 다 살아있음)
+        }
+    }
+    else
+    {
+        state.winner = 0;
+    }
 
     return state;
 }
