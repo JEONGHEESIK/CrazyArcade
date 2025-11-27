@@ -105,7 +105,7 @@ class PPOAgent:
                  state_size=config.STATE_SIZE,
                  action_size=config.ACTION_SIZE,
                  device=None,
-                 learning_rate=0.0005,
+                 learning_rate=0.001,
                  gamma=None,
                  gae_lambda=0.95,
                  clip_epsilon=0.2,
