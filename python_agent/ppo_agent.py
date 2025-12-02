@@ -1,5 +1,5 @@
 """
-PPO (Proximal Policy Optimization) 에이전트
+PPO (Proximal Policy Optimization) 에이전트 (수정됨: 초기화 균형 + 엔트로피 강화)
 """
 import torch
 import torch.nn as nn
@@ -11,20 +11,41 @@ import config
 
 
 class ActorCritic(nn.Module):
-    """Actor-Critic 네트워크"""
+    """
+    하이브리드 Actor-Critic: 시각(CNN)과 감각(MLP)의 융합
+    """
     
-    def __init__(self, state_size, action_size, hidden_size=256):
+    def __init__(self, state_size, action_size, hidden_size=512):
         super(ActorCritic, self).__init__()
         
-        # 공유 레이어
-        self.shared = nn.Sequential(
-            nn.Linear(state_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU()
-        )
+        # ==========================================
+        # 1. 시각(Vision) 처리 영역 (Shared Feature)
+        # ==========================================
+        # 입력: (Batch, 3, 13, 15) -> 폭탄맵, 아이템맵, 물줄기맵
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1)
         
-        # Actor (정책 네트워크)
+        # CNN 출력을 펼쳤을 때의 크기: 13 * 15 * 64 = 12480
+        self.cnn_out_size = 13 * 15 * 64
+        
+        # ==========================================
+        # 2. 감각(Sensor) 처리 영역 (Shared Feature)
+        # ==========================================
+        # 입력: 전체 607개 중 맵(585개)을 뺀 나머지 (22개)
+        self.sensor_fc = nn.Linear(22, 64)
+        
+        # ==========================================
+        # 3. 통합 특징 추출 (Fusion)
+        # ==========================================
+        # 입력: CNN출력(12480) + 센서출력(64) = 12544
+        self.fusion_fc = nn.Linear(self.cnn_out_size + 64, hidden_size)
+        
+        # ==========================================
+        # 4. 머리(Head) 분리 - Actor와 Critic
+        # ==========================================
+        
+        # Actor (행동 결정): 어떤 행동을 할 확률 (Softmax)
         self.actor = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.ReLU(),
@@ -32,7 +53,7 @@ class ActorCritic(nn.Module):
             nn.Softmax(dim=-1)
         )
         
-        # Critic (가치 네트워크)
+        # Critic (가치 판단): 이 상태가 얼마나 좋은가 (Scalar)
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.ReLU(),
@@ -42,18 +63,61 @@ class ActorCritic(nn.Module):
         self._initialize_weights()
     
     def _initialize_weights(self):
-        """가중치 초기화"""
+        """가중치 초기화 (CNN과 Linear를 구분하여 초기화 + Actor 균등화)"""
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
                 nn.init.orthogonal_(m.weight, gain=np.sqrt(2))
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+        
+        # 🔥 [핵심 수정] Actor의 마지막 레이어(판단 영역)를 강제로 0에 가깝게 초기화
+        # 이렇게 하면 학습 시작 시 모든 행동의 확률이 거의 균등(1/6)하게 나옴
+        # 특정 행동(IDLE)으로 초반에 쏠리는 것을 방지함
+        actor_output_layer = self.actor[2] # Sequential의 2번째가 마지막 Linear
+        if isinstance(actor_output_layer, nn.Linear):
+            nn.init.constant_(actor_output_layer.weight, 0.01)
+            nn.init.constant_(actor_output_layer.bias, 0)
     
     def forward(self, x):
-        """순전파"""
-        shared = self.shared(x)
-        action_probs = self.actor(shared)
-        state_value = self.critic(shared)
+        """
+        데이터 흐름: Input -> (Slicing) -> CNN/MLP -> Fusion -> Split -> Actor/Critic
+        """
+        batch_size = x.size(0)
+        
+        # === 데이터 분리 수술 (DQN과 동일한 로직) ===
+        # 1. 맵 데이터 추출 (18번 인덱스부터 585개)
+        map_bombs = x[:, 18 : 18+195].view(batch_size, 1, 13, 15)
+        map_items = x[:, 18+195 : 18+195*2].view(batch_size, 1, 13, 15)
+        map_waves = x[:, 18+195*2 : 18+195*3].view(batch_size, 1, 13, 15)
+        
+        visual_input = torch.cat([map_bombs, map_items, map_waves], dim=1) # (Batch, 3, 13, 15)
+        
+        # 2. 센서 데이터 추출 (앞 18개 + 뒤 4개)
+        sensor_input = torch.cat([x[:, :18], x[:, -4:]], dim=1)  # (Batch, 22)
+        
+        # === Feature Extraction ===
+        
+        # 시각 처리
+        v = F.relu(self.conv1(visual_input))
+        v = F.relu(self.conv2(v))
+        v = F.relu(self.conv3(v))
+        v = v.view(batch_size, -1)  # Flatten
+        
+        # 감각 처리
+        s = F.relu(self.sensor_fc(sensor_input))
+        
+        # 결합 (Fusion)
+        combined = torch.cat([v, s], dim=1)
+        shared_features = F.relu(self.fusion_fc(combined))
+        
+        # === Dual Head Output ===
+        action_probs = self.actor(shared_features)
+        state_value = self.critic(shared_features)
+        
         return action_probs, state_value
 
 
@@ -110,7 +174,7 @@ class PPOAgent:
                  gae_lambda=0.95,
                  clip_epsilon=0.2,
                  c1=0.5,  # Value loss coefficient
-                 c2=0.02,  # Entropy coefficient (탐험 강화)
+                 c2=0.05,  # 🔥 [수정] Entropy coefficient 상향 (0.02 -> 0.05) : 탐험 강제
                  epochs=10,
                  batch_size=64):
         

@@ -4,6 +4,7 @@ C++ 게임과 통신하는 인터페이스
 import socket
 import json
 import numpy as np
+import math
 import config
 
 
@@ -275,33 +276,61 @@ class GameEnvironment:
     
     def step(self, action):
         """
-        행동 실행
-        
-        Args:
-            action: 행동 번호 (0-5)
-        
-        Returns:
-            (next_state, reward, done, info)
+        행동 실행 및 즉각적인 행동 보정 (Action Shaping)
         """
-        # 행동 전송
+        # (이전 상태 저장 - 거리 계산용)
+        prev_x = self.current_state[0]
+        prev_y = self.current_state[1]
+
+        # 1. 행동 전송 및 상태 수신 (기존 코드)
         if not self.interface.send_action(action):
             return None, 0.0, True, {"error": "Failed to send action"}
         
-        # 다음 상태 수신
         self.previous_state = self.current_state
         self.current_state = self.interface.receive_state()
         
         if self.current_state is None:
             return None, 0.0, True, {"error": "Failed to receive state"}
         
-        # 보상 계산 (game_over 플래그는 _dict_to_vector에서 이미 저장됨)
+        # 2. 보상 계산
         reward, done, info = self._calculate_reward()
+        
+        # ============================================================
+        # 🔥 [영적 처방] 벽 치기 및 멍때리기 참교육 🔥
+        # ============================================================
+        
+        # 현재 좌표 확인
+        curr_x = self.current_state[0]
+        curr_y = self.current_state[1]
+        
+        # 행동 정의: 1:UP, 2:DOWN, 3:LEFT, 4:RIGHT
+        is_move_action = (action in [1, 2, 3, 4])
+        
+        # 이동 명령을 내렸는데 실제로 움직이지 않은 경우 (벽에 박음)
+        # 좌표는 정규화(0~1) 되어 있으므로 아주 작은 차이로 비교
+        dist = np.sqrt((curr_x - prev_x)**2 + (curr_y - prev_y)**2)
+        
+        if is_move_action and dist < 0.001: 
+            # "벽에 머리 박지 마!" -> 강력한 벌금
+            reward -= 5.0 
+            info['wall_collision'] = True
+            
+        # 폭탄 설치 패널티 (기존 유지)
+        if action == 5:
+            penalty = getattr(config, 'REWARD_PLACE_BOMB', -2.0)
+            reward += penalty
+            
+        # 멍때리기 패널티 (기존 유지)
+        elif action == 0:
+            reward += config.REWARD_IDLE_PENALTY
+            
+        # ============================================================
         
         return self.current_state, reward, done, info
     
     def _calculate_reward(self):
         """
-        보상 계산 (치열한 전투 유도)
+        보상 계산 (수정됨: 승패 판정 로직 개선 및 Premature Done 방지)
         
         Returns:
             (reward, done, info)
@@ -342,29 +371,39 @@ class GameEnvironment:
         if move_dist > 30:  # 타일 절반 이상 이동
             reward += config.REWARD_ACTIVE_MOVEMENT
 
-        # 게임 종료 체크 (서버에서 전달)
+        # ============================================================
+        # [수정됨] 게임 종료 및 승패 체크 (ID 불일치 해결 로직)
+        # ============================================================
         game_over = self.current_state[-3] > 0.5  # 끝에서 3번째
-        winner = int(self.current_state[-2])       # 끝에서 2번째
+        winner = int(self.current_state[-2])      # 끝에서 2번째
         player_index = int(self.current_state[-1]) # 끝에서 1번째
         
         if game_over:
             done = True
+            print(f"[DEBUG] Game Over Logic Triggered. Winner={winner}, MyID={player_index}")
+            
+            # 1. ID가 일치하는 경우 (정상)
             if winner == player_index:
-                # 내가 이김
                 reward += config.REWARD_WIN_GAME
                 info['result'] = 'win'
+            # 2. 0번 vs 1번 인덱스 불일치 보정
+            elif player_index == 0 and winner == 1:
+                reward += config.REWARD_WIN_GAME
+                info['result'] = 'win'
+            elif player_index == 1 and winner == 2:
+                reward += config.REWARD_WIN_GAME
+                info['result'] = 'win'
+            # 3. 무승부 (0번을 무승부로 처리)
             elif winner == 0:
-                # 무승부
                 reward += 0
                 info['result'] = 'draw'
+            # 4. 패배
             else:
-                # 내가 짐
                 reward += config.REWARD_DIE
                 info['result'] = 'died'
             return reward, done, info
         
         # 물방울 시스템 보상 (크레이지아케이드 핵심!)
-        import math
         
         # 1. 상대를 물방울에 가뒀는지 체크
         if not enemy_trapped_prev and enemy_trapped_curr:
@@ -411,20 +450,20 @@ class GameEnvironment:
                 reward += config.REWARD_APPROACH_TRAPPED  # +2
                 info['approaching_trapped'] = True
         
-        # 게임이 진행 중이면 alive 상태로도 체크 (안전장치)
+        # [수정됨] alive 상태로 인한 강제 done 제거 (보상만 주고 서버 done 기다림)
         if my_alive_prev and not my_alive_curr:
             if not my_trapped_prev:  # 물방울 없이 바로 죽음
                 reward += config.REWARD_DIE
-            done = True
+            # done = True  <-- 제거됨 (Premature Done 방지)
             info['result'] = 'died'
-            return reward, done, info
+            info['death_event'] = True
         
         if enemy_alive_prev and not enemy_alive_curr:
             if not enemy_trapped_prev:  # 물방울 없이 바로 죽음
                 reward += config.REWARD_WIN_GAME
-            done = True
+            # done = True  <-- 제거됨 (Premature Done 방지)
             info['result'] = 'win'
-            return reward, done, info
+            info['kill_event'] = True
         
         # 아이템 획득 체크 (초반 매우 중요!)
         my_bombs_prev = int(self.previous_state[3] * 6)
@@ -536,9 +575,10 @@ class GameEnvironment:
         Returns:
             위험 지역 여부
         """
-        # 맵 정보 추출 (14번 인덱스부터 시작)
-        map_bombs = state[14:14+195]  # 물풍선 위치
-        map_waves = state[14+195*2:14+195*3]  # 물줄기 위치
+        # [수정됨] 맵 정보 추출 인덱스 수정 (14 -> 18)
+        # 플레이어 관련 정보가 18개이므로 맵은 18번부터 시작해야 함
+        map_bombs = state[18:18+195]  # 물풍선 위치
+        map_waves = state[18+195*2:18+195*3]  # 물줄기 위치
         
         # 플레이어 그리드 위치 계산 (52x52 타일)
         grid_x = int((my_x - 26) / 52)

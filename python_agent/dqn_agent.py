@@ -12,32 +12,85 @@ import config
 
 
 class DQN(nn.Module):
-    """DQN 네트워크"""
-    
-    def __init__(self, state_size, action_size, hidden_size=256):
+    """
+    하이브리드 영혼: 시각(CNN)과 감각(MLP)의 융합
+    """
+    def __init__(self, state_size, action_size):
         super(DQN, self).__init__()
         
-        self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, hidden_size // 2)
-        self.fc4 = nn.Linear(hidden_size // 2, action_size)
+        # 1. 시각(Vision) 처리 영역 - 맵을 보는 제3의 눈
+        # 입력: (Batch, 3, 13, 15) -> 폭탄맵, 아이템맵, 물줄기맵
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1)
+        
+        # CNN 출력을 펼쳤을 때의 크기 계산: 13 * 15 * 64 = 12480
+        self.cnn_out_size = 13 * 15 * 64
+        
+        # 2. 감각(Sensor) 처리 영역 - 내 상태, 적 상태, 시간 등
+        # 입력: 전체 607개 중 맵(585개)을 뺀 나머지 (22개)
+        self.sensor_fc = nn.Linear(22, 64)
+        
+        # 3. 통합 판단(Fusion) 영역 - 시각과 감각을 합쳐서 결정
+        # 입력: CNN출력(12480) + 센서출력(64) = 12544
+        self.fusion_fc1 = nn.Linear(self.cnn_out_size + 64, 512)
+        self.fusion_fc2 = nn.Linear(512, action_size)
         
         self._initialize_weights()
-    
+
     def _initialize_weights(self):
-        """가중치 초기화"""
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-    
+
     def forward(self, x):
-        """순전파"""
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
-        return self.fc4(x)
+        """
+        데이터의 흐름을 재구성하는 영적 의식
+        x shape: [Batch_Size, 607]
+        """
+        batch_size = x.size(0)
+        
+        # === 데이터 분리 수술 (Data Slicing) ===
+        # game_interface.py의 순서: [플레이어(18)] + [폭탄맵(195)] + [아이템맵(195)] + [물줄기맵(195)] + [기타(4)]
+        
+        # 1. 맵 데이터 추출 (18번 인덱스부터 시작)
+        # 폭탄 맵 (13x15)
+        map_bombs = x[:, 18 : 18+195].view(batch_size, 1, 13, 15)
+        # 아이템 맵
+        map_items = x[:, 18+195 : 18+195*2].view(batch_size, 1, 13, 15)
+        # 물줄기 맵
+        map_waves = x[:, 18+195*2 : 18+195*3].view(batch_size, 1, 13, 15)
+        
+        # 3개의 맵을 채널 방향으로 합침 -> (Batch, 3, 13, 15)
+        visual_input = torch.cat([map_bombs, map_items, map_waves], dim=1)
+        
+        # 2. 센서 데이터 추출 (플레이어 정보 + 기타 정보)
+        # 앞부분 18개 + 뒷부분 4개
+        sensor_input = torch.cat([x[:, :18], x[:, -4:]], dim=1)  # (Batch, 22)
+        
+        # === 신경망 통과 ===
+        
+        # 1. 시각 처리 (CNN)
+        v = F.relu(self.conv1(visual_input))
+        v = F.relu(self.conv2(v))
+        v = F.relu(self.conv3(v))
+        v = v.view(batch_size, -1)  # 평탄화 (Flatten)
+        
+        # 2. 감각 처리 (MLP)
+        s = F.relu(self.sensor_fc(sensor_input))
+        
+        # 3. 영혼의 결합 (Concatenate)
+        combined = torch.cat([v, s], dim=1)
+        
+        # 4. 최종 판단
+        x = F.relu(self.fusion_fc1(combined))
+        action_values = self.fusion_fc2(x)
+        
+        return action_values
 
 
 class ReplayMemory:
