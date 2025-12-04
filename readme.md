@@ -134,7 +134,7 @@ python train_dqn.py \
 
 모델 저장:
 
-- 주기적으로 `./models/dqn_episode_XXX.pth`로 저장
+- Episode 50 주기 `./models/dqn_episode_XXX.pth`로 저장
 - 학습 종료 시 `./models/dqn_final.pth` 저장
 
 ### 5.2 PPO 학습 (Player 2)
@@ -266,7 +266,7 @@ python play_agent.py \
 
 ---
 
-## 8. 알려진 한계 및 관찰 결과
+## 8. 관찰 결과 및 프로젝트 한계
 
 - DQN/PPO 모두 **"상대를 정교하게 KO하는 플레이"**까지는 충분히 학습하지 못했고,
   - 서로 공격하기보다는
@@ -278,8 +278,7 @@ python play_agent.py \
     실제 플레이에서는 거의 그 행동만 반복하는 패턴이 보였습니다.
 - 승/패 판정 로직과 로그 집계는 수정되어,
   - 1vs1 게임에서 한쪽이 승이면 다른 한쪽은 패,
-  - 무승부는 양쪽 모두 draw  
-  로 일관되게 기록됩니다.
+  - 무승부는 양쪽 모두 draw 로 일관되게 기록됩니다.
 
 ---
 
