@@ -43,7 +43,6 @@ def train_dqn(episodes=1000, port=12345, model_path=None):
     episode_lengths = []
     wins = 0
     losses = 0
-    draws = 0
     
     try:
         for episode in range(episodes):
@@ -99,8 +98,6 @@ def train_dqn(episodes=1000, port=12345, model_path=None):
                     wins += 1
                 elif info['result'] == 'died':
                     losses += 1
-                elif info['result'] == 'draw':
-                    draws += 1
             
             # 타겟 네트워크 업데이트
             if (episode + 1) % config.TARGET_UPDATE_FREQUENCY == 0:
@@ -110,13 +107,12 @@ def train_dqn(episodes=1000, port=12345, model_path=None):
             if (episode + 1) % 10 == 0:
                 avg_reward = np.mean(episode_rewards[-10:])
                 avg_length = np.mean(episode_lengths[-10:])
-                total_eps = episode + 1
-                win_rate = wins / total_eps if total_eps > 0 else 0
+                win_rate = wins / (wins + losses) if (wins + losses) > 0 else 0
                 
                 print(f"Episode {episode + 1}/{episodes}")
-                print(f"  Avg Reward (last 10): {avg_reward:.2f}")
-                print(f"  Avg Length (last 10): {avg_length:.1f}")
-                print(f"  Win Rate: {win_rate:.2%} (W/L/D = {wins}/{losses}/{draws})")
+                print(f"  Avg Reward: {avg_reward:.2f}")
+                print(f"  Avg Length: {avg_length:.1f}")
+                print(f"  Win Rate: {win_rate:.2%} ({wins}W / {losses}L)")
                 print(f"  Epsilon: {agent.epsilon:.3f}")
                 print(f"  Memory: {len(agent.memory)}")
             
@@ -142,12 +138,10 @@ def train_dqn(episodes=1000, port=12345, model_path=None):
         
         # 최종 통계
         print("\n=== Training Summary ===")
-        total_eps = len(episode_rewards)
-        print(f"Total Episodes: {total_eps}")
+        print(f"Total Episodes: {len(episode_rewards)}")
         print(f"Total Wins: {wins}")
         print(f"Total Losses: {losses}")
-        print(f"Total Draws: {draws}")
-        print(f"Win Rate: {wins / total_eps if total_eps > 0 else 0:.2%}")
+        print(f"Win Rate: {wins / (wins + losses) if (wins + losses) > 0 else 0:.2%}")
         print(f"Avg Reward: {np.mean(episode_rewards):.2f}")
         print(f"Avg Episode Length: {np.mean(episode_lengths):.1f}")
 
