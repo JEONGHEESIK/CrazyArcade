@@ -11,8 +11,10 @@ C++로 구현된 게임 서버와 Python 강화학습 에이전트를 TCP 소켓
 
 전략을 스스로 학습하도록 하는 것을 목표로 합니다.
 
-
-| ![Episode 10](./visual/10.gif) | ![Episode 1000](./visual/1000.gif) |
+[Episode10]
+![Episode 10](./visual/10.gif)  
+[Episode1000]
+![Episode 1000](./visual/1000.gif) 
 ---
 
 ## 1. 폴더 구조
